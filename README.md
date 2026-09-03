@@ -1,0 +1,64 @@
+# 금융 근육 — 나만의 금융 선생님
+
+금융 초보가 **3개월(12주) 안에 금융 용어에 익숙해지고, 투자한 회사를 경영자 수준으로 이해**하도록 돕는 개인 학습 앱입니다. 순수 HTML/CSS/JS로 만들어져 서버 없이 브라우저에서 바로 돌아갑니다.
+
+## 무엇이 들어 있나
+
+| 기능 | Claude API 필요? | 설명 |
+|---|---|---|
+| 12주 커리큘럼 (60레슨) | 아니오 | 재무제표 → 비율·성장 → 밸류에이션 → 경영자 관점·공시 → 거시·원칙. 매 레슨에 **경영자 관점**, **공시 읽기 연습**(실제 IR 자료에서 할 것), **시장 흐름 연결**, 퀴즈 3문항 |
+| 용어 카드 (235개) | 아니오 | 간격반복(SM-2 변형)으로 매일 10분 복습. 진도에 맞춰 자동 해금 |
+| 튜터 | 예 | 소크라테스식. 답 대신 질문으로 이끌고, 보유 종목과 공시로 연결 |
+| 종목분석 | 예 | 15분 스캔·세 줄 이야기·9칸 사업모델·역산 기대치. 웹검색으로 최신 공시 숫자 확인 |
+| 공시 해석 | 예 | 보도자료·컨퍼런스콜 Q&A·리스크 팩터 비교·주주서한·10-K 원문을 붙여넣으면 배운 틀로 해부 |
+| 오늘의 시장 | 예 | 웹검색 기반 브리핑을 **이번 주 학습 개념**과 연결. 보유 종목 뉴스·다가오는 일정 포함 |
+
+## 실행하기
+
+1. 폴더를 내려받고 `index.html`을 더블클릭 (Chrome/Safari/Edge).
+   - 또는 터미널에서 `python3 -m http.server 8000` 후 `http://localhost:8000`
+2. 오른쪽 위 ⚙︎ 설정 → Claude API 키 입력 → **목록 불러오기**로 모델 선택 → 보유 종목·소개 입력 → 저장.
+   - 키는 [console.anthropic.com](https://console.anthropic.com)에서 발급. 이 브라우저의 localStorage에만 저장되고 anthropic.com 외에는 전송되지 않습니다.
+3. "오늘" 탭의 3단계 루틴(레슨 → 카드 → 튜터)을 매일 25분.
+
+폰에서도 쓰려면: GitHub Pages 등 정적 호스팅에 올리고(키는 각 기기 브라우저에 따로 입력), 설정의 **내보내기/가져오기**로 진도를 옮깁니다.
+
+## 폴더 구조
+
+```
+index.html          화면 뼈대
+styles.css          스타일 (라이트/다크 자동)
+data-curriculum-1.js   1~4주차 레슨 (재무제표)
+data-curriculum-2.js   5~8주차 레슨 (비율·성장·밸류에이션)
+data-curriculum-3.js   9~12주차 레슨 (경영자 관점·공시·거시·원칙)
+data-practice-1.js     1~4주차 공시 읽기 연습·시장 흐름 연결 (5주차부터는 레슨 안에 포함)
+data-terms-1.js        용어 카드 1~6주차
+data-terms-2.js        용어 카드 7~12주차
+js-store.js          localStorage 저장 (설정·진도·카드·대화)
+js-md.js             작은 마크다운 렌더러
+js-srs.js            간격반복 스케줄러
+js-claude.js         Claude API 호출 (스트리밍·웹검색)
+js-prompts.js        튜터·종목분석·공시 해석·시장 브리핑 시스템 프롬프트
+js-app.js            라우터·헬퍼
+js-views.js          화면들
+```
+
+## 직접 고치기 (코딩 연습 포인트)
+
+- **레슨 추가·수정**: `data-curriculum-*.js`의 객체 하나가 레슨 하나. `body`는 마크다운. `quiz.a`는 정답 인덱스(0부터).
+- **용어 추가**: `data-terms-*.js`에 `{ id, ko, en, week, def, hint }` 추가 후 레슨의 `terms` 배열에 id를 넣으면 자동 연결.
+- **튜터 성격 바꾸기**: `js-prompts.js`의 `tutor()` 함수. "답변 150자 이내 + 질문 하나" 같은 규칙이 여기 있음.
+- **분석 형식 바꾸기**: `js-prompts.js`의 `stockScan()`·`disclosure()`·`market()`.
+- **간격 조정**: `js-srs.js`의 `rate()` 안 숫자.
+
+## 참고한 오픈소스
+
+- [Zerodha Varsity](https://zerodha.com/varsity/modules/) — 입문→재무제표→밸류에이션 모듈 순서
+- [hendrirach/financemasters](https://github.com/hendrirach/financemasters) — 주제 분류
+- [zijinz456/OpenTutor](https://github.com/zijinz456/OpenTutor) — 자료 업로드 → 노트·퀴즈·카드, 간격반복(FSRS), 소크라테스식 튜터 에이전트 구조
+- [kangjul3854/hyufa](https://github.com/kangjul3854/hyufa) — 한국어 금융 멘토 챗봇 톤
+- [cubasve/Finesse](https://github.com/cubasve/Finesse) — 재무제표 3개를 연결해 배우는 방식
+
+## 주의
+
+이 앱과 AI 튜터는 교육 도구입니다. 매수·매도·목표주가를 제시하지 않으며, AI가 말하는 숫자는 반드시 공시 원문에서 확인하세요. 투자 판단과 책임은 본인에게 있습니다.
