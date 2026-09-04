@@ -5,15 +5,19 @@ const Prompts = (() => {
     const s = Store.get().settings; const p = Store.get().progress;
     const done = Object.keys(p.completed).length; const wk = App.currentWeek();
     const learned = window.CURRICULUM.filter(w => w.week <= wk).map(w => `${w.week}주차 ${w.title}`).join(', ');
+    const lv = Store.LEVELS[s.level] || Store.LEVELS.beginner; const role = Store.ROLES[s.role] || Store.ROLES.family;
     return `## 학습자
-- 이름: ${s.name || '학습자'} / 배경: ${s.profile}
-- 보유·관심 종목: ${s.holdings}
+- 이름: ${s.name || '학습자'} / 관계: ${role.label} / 레벨: ${lv.label} (${lv.desc})
+- 배경: ${s.profile || '(미입력)'}
+- 보유·관심 종목: ${s.holdings || '(미입력 — 종목 예시는 일반적인 미국 대형주로)'}
+- 비유 방식: ${role.analogy}
+- 레벨별 조정: 초급은 용어마다 한 줄 정의를 붙이고 숫자 예시를 단순하게, 중급은 정의 생략하고 비율·추세 중심으로, 고급은 반론과 예외 사례까지 포함해 밀도 있게.
 - 진도: 12주 과정 중 ${wk}주차 (레슨 ${done}/60 완료). 지금까지 다룬 주제: ${learned || '아직 없음'}
 - 목표: 3개월 안에 금융 용어에 익숙해지고, 투자한 회사를 '경영자 수준'으로 이해하기. 매 세션에 (1) 회사 공시 자료 해석 (2) 시장·세상의 흐름 이해가 포함되어야 함.`;
   }
   const commonRules = `## 공통 규칙
 - 한국어로, 존댓말로, 간결하게. 불필요한 서론 없이 바로 본론.
-- 학습자는 외식 프랜차이즈 경영자다. 가능하면 자기 사업(매장 운영, 원가, 재방문율, 프랜차이즈 확장)에 빗대어 설명하라.
+- 학습자의 '관계'와 '비유 방식'에 맞춰 설명하라. 학습자 이름을 가끔 불러라.
 - 아직 배우지 않은 주차의 개념을 써야 하면 한 줄로 정의를 붙여라.
 - 숫자를 말할 때 확실하지 않으면 "대략", "추정"이라고 밝혀라. 실제 공시 원문에서 확인하라고 권하라.
 - 매수·매도·목표주가를 지시하지 마라. 판단은 학습자가 한다. 대신 판단에 필요한 질문과 틀을 줘라.

@@ -4,7 +4,7 @@ const Claude = (() => {
   const BASE = 'https://api.anthropic.com/v1';
   const VERSION = '2023-06-01';
   function headers() {
-    const s = Store.get().settings;
+    const s = Store.device();
     if (!s.apiKey) throw new Error('설정에서 Claude API 키를 먼저 입력하세요.');
     return { 'content-type': 'application/json', 'x-api-key': s.apiKey, 'anthropic-version': VERSION, 'anthropic-dangerous-direct-browser-access': 'true' };
   }
@@ -14,7 +14,7 @@ const Claude = (() => {
     const j = await r.json(); return (j.data || []).map(m => ({ id: m.id, name: m.display_name || m.id }));
   }
   function model() {
-    const s = Store.get().settings; return s.model || 'claude-sonnet-4-5';
+    const s = Store.device(); return s.model || 'claude-sonnet-4-5';
   }
   // 비스트리밍 호출 (웹검색 도구 포함 가능). 반환: { text, sources[] }
   async function complete({ system, messages, maxTokens = 2500, webSearch = false, temperature = 0.5 }) {

@@ -10,7 +10,7 @@ register('home', (view) => {
   const day = App.daysSinceStart();
   view.appendChild(h(`
     <h1>${S.settings.name ? S.settings.name + '님, ' : ''}오늘의 학습</h1>
-    <p class="sub">시작한 지 ${day}일째 · ${wk}주차 「${week.title}」 · 전체 진도 ${total}%</p>
+    <p class="sub">${App.level().label} 과정 · 시작한 지 ${day}일째 · ${wk}주차 「${week.title}」 · 전체 진도 ${total}%</p>
     <div class="progress" style="margin-bottom:18px"><div style="width:${total}%"></div></div>
     <div class="stats card">
       <div class="stat"><div class="n">${Object.keys(S.progress.completed).length}<span class="muted" style="font-size:14px">/60</span></div><div class="l">레슨 완료</div></div>
@@ -18,6 +18,7 @@ register('home', (view) => {
       <div class="stat"><div class="n">${cs.mature}<span class="muted" style="font-size:14px">/${cs.total}</span></div><div class="l">숙련 용어</div></div>
       <div class="stat"><div class="n">${Store.currentStreak()}</div><div class="l">연속 학습일</div></div>
     </div>`));
+  if (App.isFastWeek(wk)) view.appendChild(h(`<div class="callout disc" style="margin-top:0"><div class="t">⚡ ${App.level().label} 과정: ${wk}주차는 통과 테스트로 건너뛸 수 있습니다</div><p>5문항 중 4개 이상 맞히면 이 주차가 완료 처리됩니다. 통과 못 하면 그 주차를 정독하세요.</p><div class="row" style="margin-top:8px"><button class="btn small" data-go="fastpass" data-params='${JSON.stringify({ week: wk })}'>${wk}주차 통과 테스트 (3분)</button><button class="btn small secondary" data-go="lesson" data-params='${JSON.stringify({ id: next.id })}'>그냥 정독하기</button></div></div>`));
   // 오늘의 3단계
   const steps = h(`<div class="card"><h2 style="margin-top:0">오늘의 루틴 (약 25분)</h2></div>`);
   const pr = window.PRACTICE[next.id] || {};
@@ -29,19 +30,21 @@ register('home', (view) => {
     <div class="card clickable" data-go="market"><b>🌍 오늘의 시장</b><p class="small muted" style="margin:6px 0 0">이번 주 개념(${week.title})으로 오늘 시장을 읽습니다. 웹검색 기반 브리핑.</p></div>
     <div class="card clickable" data-go="stocks"><b>📊 종목분석 · 공시 해석</b><p class="small muted" style="margin:6px 0 0">${MD.esc(S.settings.holdings)} — 스캔하거나 공시 원문을 붙여넣어 해부합니다.</p></div>
   </div>`));
-  if (!S.settings.apiKey) view.appendChild(h(`<div class="card"><b>처음이신가요?</b><p class="muted small" style="margin:6px 0 10px">설정에서 Claude API 키와 보유 종목을 입력하면 튜터·종목분석·시장 브리핑이 활성화됩니다. 레슨과 카드는 지금 바로 가능합니다.</p><button class="btn small" data-go="settings">설정 열기</button></div>`));
+  if (!Store.device().apiKey) view.appendChild(h(`<div class="card"><b>처음이신가요?</b><p class="muted small" style="margin:6px 0 10px">설정에서 Claude API 키와 보유 종목을 입력하면 튜터·종목분석·시장 브리핑이 활성화됩니다. 레슨과 카드는 지금 바로 가능합니다.</p><button class="btn small" data-go="settings">설정 열기</button></div>`));
 });
 
 // ───────────────────────── 커리큘럼
 register('curriculum', (view) => {
   const wk = App.currentWeek();
-  view.appendChild(h(`<h1>12주 커리큘럼</h1><p class="sub">재무제표(1~4주) → 비율·성장(5~6주) → 밸류에이션(7~8주) → 경영자 관점·공시(9~10주) → 거시·원칙(11~12주). 매 레슨에 공시 읽기 연습과 시장 흐름 연결이 포함됩니다.</p>`));
+  const lv = App.level();
+  view.appendChild(h(`<h1>12주 커리큘럼 <span class="pill info" style="font-size:13px;vertical-align:middle">${lv.label}</span></h1><p class="sub">${lv.fastWeeks ? `${lv.label} 과정: 1~${lv.fastWeeks}주차는 ⚡ 통과 테스트로 건너뛸 수 있습니다. ` : ''}재무제표(1~4주) → 비율·성장(5~6주) → 밸류에이션(7~8주) → 경영자 관점·공시(9~10주) → 거시·원칙(11~12주). 매 레슨에 공시 읽기 연습과 시장 흐름 연결이 포함됩니다.</p>`));
   const box = h(`<div class="card"></div>`);
   for (const w of window.CURRICULUM) {
     const p = App.weekProgress(w.week); const cls = p === 1 ? 'done' : w.week === wk ? 'cur' : '';
-    const row = h(`<div class="week-row"><div class="week-num ${cls}">${w.week}</div><div style="flex:1"><div class="row spread"><b>${w.title}</b><span class="small muted">${Math.round(p * 5)}/5</span></div><div class="small muted">${w.goal}</div><div class="progress" style="margin-top:6px"><div style="width:${p * 100}%"></div></div></div></div>`);
+    const fast = App.isFastWeek(w.week);
+    const row = h(`<div class="week-row"><div class="week-num ${cls}">${w.week}</div><div style="flex:1"><div class="row spread"><b>${w.title}</b><span class="row">${fast ? `<button class="btn small secondary" data-go="fastpass" data-params='${JSON.stringify({ week: w.week })}'>⚡ 통과 테스트</button>` : ''}<span class="small muted">${Math.round(p * 5)}/5</span></span></div><div class="small muted">${w.goal}</div><div class="progress" style="margin-top:6px"><div style="width:${p * 100}%"></div></div></div></div>`);
     row.style.cursor = 'pointer';
-    row.addEventListener('click', () => { const ex = row.nextElementSibling; if (ex && ex.classList.contains('lessons')) { ex.remove(); return; } const ul = h(`<div class="lessons"></div>`); for (const l of w.lessons) ul.appendChild(h(`<div class="lesson-row" data-go="lesson" data-params='${JSON.stringify({ id: l.id })}'><span class="check ${App.isDone(l.id) ? 'done' : ''}">${App.isDone(l.id) ? '✓' : l.day}</span><div style="flex:1">${l.title}</div><span class="small muted">${l.minutes}분</span></div>`)); row.after(ul); });
+    row.addEventListener('click', (e) => { if (e.target.closest('[data-go]')) return; const ex = row.nextElementSibling; if (ex && ex.classList.contains('lessons')) { ex.remove(); return; } const ul = h(`<div class="lessons"></div>`); for (const l of w.lessons) ul.appendChild(h(`<div class="lesson-row" data-go="lesson" data-params='${JSON.stringify({ id: l.id })}'><span class="check ${App.isDone(l.id) ? 'done' : ''}">${App.isDone(l.id) ? '✓' : l.day}</span><div style="flex:1">${l.title}</div><span class="small muted">${l.minutes}분</span></div>`)); row.after(ul); });
     box.appendChild(row);
   }
   view.appendChild(box);
@@ -211,27 +214,32 @@ register('market', (view) => {
 
 // ───────────────────────── 설정
 register('settings', (view) => {
-  const S = Store.get(); const s = S.settings;
-  view.appendChild(h(`<h1>⚙︎ 설정</h1><p class="sub">API 키와 진도는 이 브라우저에만 저장됩니다. 다른 기기에서 쓰려면 아래 내보내기/가져오기를 사용하세요.</p>`));
-  const f = h(`<div class="card">
-    <div class="field"><label>Claude API 키</label><input id="key" type="password" value="${MD.esc(s.apiKey)}" placeholder="sk-ant-…"><div class="help">console.anthropic.com에서 발급. 키는 anthropic.com에만 전송됩니다. 튜터·종목분석·시장 브리핑에 필요.</div></div>
-    <div class="field"><label>모델</label><div class="row"><select id="model" style="flex:1"><option value="">${s.model ? MD.esc(s.model) : '키 저장 후 목록 불러오기'}</option></select><button class="btn secondary small" id="load">목록 불러오기</button></div><div class="help">비용을 아끼려면 Haiku, 깊은 분석은 Sonnet/Opus. 매일 튜터 5분 + 브리핑 1회는 Sonnet 기준 월 몇 달러 수준입니다.</div></div>
-    <div class="field"><label><input type="checkbox" id="ws" style="width:auto" ${s.webSearch ? 'checked' : ''}> 종목 스캔에 웹검색 사용</label><div class="help">오늘의 시장 브리핑은 항상 웹검색을 씁니다. 웹검색은 호출당 소액 추가 비용.</div></div>
-    <hr>
-    <div class="grid2"><div class="field"><label>이름 (호칭)</label><input id="name" value="${MD.esc(s.name)}" placeholder="정원"></div><div class="field"><label>시작일</label><input id="start" type="date" value="${s.startDate}"></div></div>
-    <div class="field"><label>보유·관심 종목 (쉼표 구분)</label><input id="hold" value="${MD.esc(s.holdings)}"><div class="help">튜터의 예시, 종목 스캔 칩, 시장 브리핑의 '내 종목' 섹션에 쓰입니다.</div></div>
-    <div class="field"><label>나에 대한 소개 (튜터가 눈높이와 비유를 맞추는 데 사용)</label><textarea id="prof" style="min-height:80px">${MD.esc(s.profile)}</textarea></div>
-    <button class="btn" id="save">저장</button> <span id="msg" class="small muted"></span>
-  </div>`);
-  const sel = f.querySelector('#model'); if (s.model) sel.value = s.model;
-  f.querySelector('#load').addEventListener('click', async () => { s.apiKey = f.querySelector('#key').value.trim(); Store.save(); const m = f.querySelector('#msg'); m.innerHTML = '<span class="spinner"></span>'; try { const list = await Claude.listModels(); sel.innerHTML = list.map(x => `<option value="${x.id}">${MD.esc(x.name)} (${x.id})</option>`).join(''); const pick = s.model && list.find(x => x.id === s.model) ? s.model : (list.find(x => /sonnet/i.test(x.id)) || list[0]).id; sel.value = pick; m.textContent = `모델 ${list.length}개 · 키 확인됨`; } catch (e) { m.innerHTML = `<span class="err">${MD.esc(e.message)}</span>`; } });
-  f.querySelector('#save').addEventListener('click', () => { s.apiKey = f.querySelector('#key').value.trim(); s.model = sel.value || s.model; s.webSearch = f.querySelector('#ws').checked; s.name = f.querySelector('#name').value.trim(); s.startDate = f.querySelector('#start').value || s.startDate; s.holdings = f.querySelector('#hold').value.trim(); s.profile = f.querySelector('#prof').value.trim(); Store.save(); toast('저장되었습니다'); });
+  const D = Store.device(); const P = Store.active(); const s = P ? P.settings : null;
+  view.appendChild(h(`<h1>⚙︎ 설정</h1><p class="sub">API 키·모델은 이 브라우저 공통, 나머지는 현재 사용자(${s ? MD.esc(s.name) : '없음'}) 전용입니다.</p>`));
+  const f = h(`<div class="card"><h3 style="margin-top:0">Claude 연결 (이 기기 공통)</h3>
+    <div class="field"><label>Claude API 키</label><input id="key" type="password" value="${MD.esc(D.apiKey)}" placeholder="sk-ant-…"><div class="help">console.anthropic.com에서 발급. 키는 anthropic.com에만 전송됩니다. 튜터·종목분석·시장 브리핑에 필요. 레슨·카드는 키 없이 가능.</div></div>
+    <div class="field"><label>모델</label><div class="row"><select id="model" style="flex:1"><option value="">${D.model ? MD.esc(D.model) : '키 저장 후 목록 불러오기'}</option></select><button class="btn secondary small" id="load">목록 불러오기</button></div><div class="help">비용을 아끼려면 Haiku, 깊은 분석은 Sonnet/Opus. 매일 튜터 5분 + 브리핑 1회는 Sonnet 기준 월 몇 달러 수준.</div></div>
+    <div class="field"><label><input type="checkbox" id="ws" style="width:auto" ${D.webSearch ? 'checked' : ''}> 종목 스캔에 웹검색 사용</label></div>
+    <button class="btn" id="savedev">연결 저장</button> <span id="msg" class="small muted"></span></div>`);
+  const sel = f.querySelector('#model'); if (D.model) sel.value = D.model;
+  f.querySelector('#load').addEventListener('click', async () => { D.apiKey = f.querySelector('#key').value.trim(); Store.save(); const m = f.querySelector('#msg'); m.innerHTML = '<span class="spinner"></span>'; try { const list = await Claude.listModels(); sel.innerHTML = list.map(x => `<option value="${x.id}">${MD.esc(x.name)} (${x.id})</option>`).join(''); const pick = D.model && list.find(x => x.id === D.model) ? D.model : (list.find(x => /sonnet/i.test(x.id)) || list[0]).id; sel.value = pick; m.textContent = `모델 ${list.length}개 · 키 확인됨`; } catch (e) { m.innerHTML = `<span class="err">${MD.esc(e.message)}</span>`; } });
+  f.querySelector('#savedev').addEventListener('click', () => { D.apiKey = f.querySelector('#key').value.trim(); D.model = sel.value || D.model; D.webSearch = f.querySelector('#ws').checked; Store.save(); toast('연결 설정 저장됨'); });
   view.appendChild(f);
-  const io = h(`<div class="card"><b>진도 백업 · 기기 간 이동</b><p class="small muted">진도·카드·대화·설정(API 키 포함)을 JSON으로 내보냅니다. 다른 기기의 같은 앱에서 가져오기 하면 이어서 학습할 수 있습니다.</p><div class="row"><button class="btn secondary small" id="exp">내보내기 (복사)</button><button class="btn secondary small" id="imp">가져오기 (붙여넣기)</button><button class="btn warn small" id="reset">전체 초기화</button></div><textarea id="io" style="margin-top:10px;min-height:80px" placeholder="여기에 붙여넣고 '가져오기'"></textarea></div>`);
-  io.querySelector('#exp').addEventListener('click', async () => { const j = Store.export(); io.querySelector('#io').value = j; try { await navigator.clipboard.writeText(j); toast('클립보드에 복사됨'); } catch (e) { toast('아래 텍스트를 직접 복사하세요'); } });
-  io.querySelector('#imp').addEventListener('click', () => { try { Store.import(io.querySelector('#io').value); toast('가져오기 완료'); go('home'); } catch (e) { toast('JSON 형식이 올바르지 않습니다'); } });
-  io.querySelector('#reset').addEventListener('click', () => { if (confirm('모든 진도·카드·대화·설정을 지웁니다. 계속할까요?')) { Store.reset(); go('home'); } });
+  if (!s) { view.appendChild(h(`<div class="card"><button class="btn" data-go="profiles">사용자 선택으로</button></div>`)); return; }
+  const g = h(`<div class="card"><h3 style="margin-top:0">현재 사용자: ${MD.esc(s.name)}</h3>
+    <div class="grid2"><div class="field"><label>이름</label><input id="name" value="${MD.esc(s.name)}"></div><div class="field"><label>시작일</label><input id="start" type="date" value="${s.startDate}"></div></div>
+    <div class="field"><label>레벨</label><select id="lv">${Object.entries(Store.LEVELS).map(([k, v]) => `<option value="${k}" ${s.level === k ? 'selected' : ''}>${v.label} — ${v.desc}</option>`).join('')}</select><div class="help">${s.placement ? `배치 테스트(${s.placement.date}): 기초 ${s.placement.b}/4 · 비율 ${s.placement.r}/3 · 밸류에이션 ${s.placement.v}/3 → 추천 ${Store.LEVELS[s.placement.recommended].label}` : '배치 테스트 기록 없음'}</div></div>
+    <div class="field"><label>관계 (튜터의 비유 방식)</label><select id="role">${Object.entries(Store.ROLES).map(([k, v]) => `<option value="${k}" ${s.role === k ? 'selected' : ''}>${v.label}</option>`).join('')}</select></div>
+    <div class="field"><label>보유·관심 종목 (쉼표 구분)</label><input id="hold" value="${MD.esc(s.holdings)}"></div>
+    <div class="field"><label>소개 (튜터가 눈높이를 맞추는 데 사용)</label><textarea id="prof" style="min-height:70px">${MD.esc(s.profile)}</textarea></div>
+    <div class="row spread"><button class="btn" id="save">사용자 설정 저장</button><button class="btn secondary" data-go="profiles">다른 사용자로 전환</button></div></div>`);
+  g.querySelector('#save').addEventListener('click', () => { s.name = g.querySelector('#name').value.trim() || s.name; s.startDate = g.querySelector('#start').value || s.startDate; s.level = g.querySelector('#lv').value; s.role = g.querySelector('#role').value; s.holdings = g.querySelector('#hold').value.trim(); s.profile = g.querySelector('#prof').value.trim(); Store.save(); toast('저장되었습니다'); App.go('settings'); });
+  view.appendChild(g);
+  const io = h(`<div class="card"><b>이 사용자의 진도 백업 · 기기 간 이동</b><p class="small muted">진도·카드·대화·설정(API 키 제외)을 JSON으로 내보냅니다. 다른 기기의 앱에서 '사용자 추가' 대신 여기 가져오기를 하면 이어서 학습합니다.</p><div class="row"><button class="btn secondary small" id="exp">내보내기 (복사)</button><button class="btn secondary small" id="imp">가져오기 (붙여넣기 → 새 사용자로)</button><button class="btn warn small" id="del">이 사용자 삭제</button></div><textarea id="io" style="margin-top:10px;min-height:70px" placeholder="여기에 붙여넣고 '가져오기'"></textarea></div>`);
+  io.querySelector('#exp').addEventListener('click', async () => { const j = Store.exportProfile(); io.querySelector('#io').value = j; try { await navigator.clipboard.writeText(j); toast('클립보드에 복사됨'); } catch (e) { toast('아래 텍스트를 직접 복사하세요'); } });
+  io.querySelector('#imp').addEventListener('click', () => { try { Store.importProfile(io.querySelector('#io').value); toast('가져오기 완료'); go('home'); } catch (e) { toast('JSON 형식이 올바르지 않습니다'); } });
+  io.querySelector('#del').addEventListener('click', () => { if (confirm(`${s.name} 사용자의 진도·카드·대화를 모두 지웁니다. 계속할까요?`)) { Store.remove(P.id); go('profiles'); } });
   view.appendChild(io);
-  view.appendChild(h(`<div class="card small muted"><b>이 앱에 대해</b><p style="margin:6px 0">깃허브 레퍼런스: 커리큘럼 구조는 Zerodha Varsity·financemasters, 튜터 구조(간격반복·소크라테스식·자료 업로드 해석)는 OpenTutor, 한국어 금융 멘토 톤은 hyufa를 참고해 만들었습니다. 코드는 순수 HTML/CSS/JS이며 <code>data/</code> 폴더의 레슨·용어를 수정해 자유롭게 확장할 수 있습니다.</p><p style="margin:6px 0">투자 판단은 본인 책임입니다. 이 앱과 AI 튜터는 교육 도구이며 매수·매도 조언을 하지 않습니다.</p></div>`));
+  view.appendChild(h(`<div class="card small muted"><b>이 앱에 대해</b><p style="margin:6px 0">깃허브 레퍼런스: 커리큘럼 구조는 Zerodha Varsity·financemasters, 튜터 구조(간격반복·소크라테스식·자료 업로드 해석)는 OpenTutor, 한국어 금융 멘토 톤은 hyufa를 참고해 만들었습니다. 순수 HTML/CSS/JS이며 <code>data-*.js</code> 파일의 레슨·용어를 수정해 자유롭게 확장할 수 있습니다.</p><p style="margin:6px 0">투자 판단은 본인 책임입니다. 이 앱과 AI 튜터는 교육 도구이며 매수·매도 조언을 하지 않습니다.</p></div>`));
 });
 })();
