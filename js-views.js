@@ -26,7 +26,9 @@ register('home', (view) => {
   steps.appendChild(h(`<div class="lesson-row" data-go="cards"><span class="check">2</span><div><b>용어 카드 복습 — ${cs.due}장</b><div class="small muted">간격반복. 매일 10분이면 3개월 뒤에도 남습니다</div></div></div>`));
   steps.appendChild(h(`<div class="lesson-row" data-go="tutor" data-params='${JSON.stringify({ lessonId: next.id })}'><span class="check">3</span><div><b>튜터와 5분 — 소크라테스식 질문</b><div class="small muted">"${MD.esc(next.socratic.slice(0, 70))}…"</div></div></div>`));
   view.appendChild(steps);
+  const nw = Object.keys(S.myWords || {}).length;
   view.appendChild(h(`<div class="grid2">
+    <div class="card clickable" data-go="notes"><b>📝 내 노트</b><p class="small muted" style="margin:6px 0 0">모르는 단어 ${nw}개 저장됨. 레슨에서 단어를 클릭·드래그해 추가하세요.</p></div>
     <div class="card clickable" data-go="market"><b>🌍 오늘의 시장</b><p class="small muted" style="margin:6px 0 0">이번 주 개념(${week.title})으로 오늘 시장을 읽습니다. 웹검색 기반 브리핑.</p></div>
     <div class="card clickable" data-go="stocks"><b>📊 종목분석 · 공시 해석</b><p class="small muted" style="margin:6px 0 0">${MD.esc(S.settings.holdings)} — 스캔하거나 공시 원문을 붙여넣어 해부합니다.</p></div>
   </div>`));
@@ -57,8 +59,10 @@ register('lesson', (view, { id }) => {
   const S = Store.get(); S.progress.lastLesson = id; Store.save();
   const all = App.allLessons(); const idx = all.findIndex(x => x.id === id); const prev = all[idx - 1], next = all[idx + 1];
   view.appendChild(h(`<div class="row spread"><span class="pill info">${L.week}주차 · ${L.day}일차</span><span class="small muted">${L.minutes}분 · ${L.weekTitle}</span></div><h1 style="margin-top:8px">${L.title}</h1>`));
-  view.appendChild(h(`<div class="card lesson-body">${MD.render(L.body)}</div>`));
-  view.appendChild(h(`<div class="callout ceo"><div class="t">👔 경영자 관점</div><p>${MD.inline(L.ceo)}</p></div>`));
+  const bodyEl = h(`<div class="card lesson-body">${MD.render(L.body)}</div>`); Notes.linkTerms(bodyEl); view.appendChild(bodyEl);
+  view.appendChild(h(`<p class="small muted" style="margin:-6px 0 12px">모르는 말이 있으면 <span class="term-link">점선 단어</span>를 클릭하거나 아무 단어나 드래그하세요 → 내 노트와 용어 카드에 저장됩니다.</p>`));
+  Notes.enable(view, { lessonId: id });
+  const ceoEl = h(`<div class="callout ceo"><div class="t">👔 경영자 관점</div><p>${MD.inline(L.ceo)}</p></div>`); Notes.linkTerms(ceoEl); view.appendChild(ceoEl);
   view.appendChild(h(`<div class="callout disc"><div class="t">📄 공시 읽기 연습 — 오늘 실제 IR 자료에서 할 것</div><p>${MD.inline(disc)}</p><div class="row" style="margin-top:8px"><button class="btn small secondary" data-go="stocks" data-params='{"tab":"disc"}'>공시 해석 모드로 이동</button></div></div>`));
   view.appendChild(h(`<div class="callout mkt"><div class="t">🌍 시장 흐름 연결 — 이 개념이 지금 세상과 닿는 곳</div><p>${MD.inline(mkt)}</p><div class="row" style="margin-top:8px"><button class="btn small secondary" data-go="market">오늘의 시장 브리핑 보기</button></div></div>`));
   // 용어
@@ -104,14 +108,14 @@ register('cards', (view) => {
     area.innerHTML = '';
     if (!queue.length) { area.appendChild(h(`<div class="card" style="text-align:center;padding:40px"><div style="font-size:40px">🎉</div><b>오늘 복습 완료</b><p class="muted small">내일 다시 오세요. 레슨을 진행하면 새 용어가 추가됩니다.</p><button class="btn secondary small" id="more">새 카드 10장 더 학습</button></div>`)); area.querySelector('#more').addEventListener('click', () => { queue = SRS.pool(wk).filter(t => !S.cards[t.id]).slice(0, 10); if (!queue.length) queue = SRS.pool(wk).sort(() => Math.random() - .5).slice(0, 10); show(); }); return; }
     const t = queue[0]; let flipped = false;
-    const card = h(`<div class="card flash"><div class="small muted" style="margin-bottom:10px">${t.week}주차 · 남은 카드 ${queue.length}</div><div class="term">${t.ko}</div><div class="en">${t.en}</div><div class="def" hidden>${MD.inline(t.def)}<div class="hint">💡 ${MD.inline(t.hint)}</div></div><div class="small muted" style="margin-top:16px" id="tap">눌러서 뒤집기 (<kbd>Space</kbd>)</div></div>`);
+    const card = h(`<div class="card flash"><div class="small muted" style="margin-bottom:10px">${t.mine ? '내 단어' : t.week + '주차'} · 남은 카드 ${queue.length}</div><div class="term">${t.ko}</div><div class="en">${t.en}</div><div class="def" hidden>${MD.inline(t.def)}<div class="hint">💡 ${MD.inline(t.hint)}</div></div><div class="small muted" style="margin-top:16px" id="tap">눌러서 뒤집기 (<kbd>Space</kbd>)</div></div>`);
     const rate = h(`<div class="rate" hidden><button class="r1"><b>다시</b><span>오늘 다시</span></button><button class="r2"><b>어려움</b><span>1~3일</span></button><button class="r3"><b>좋음</b><span>2~5일+</span></button><button class="r4"><b>쉬움</b><span>4~8일+</span></button></div>`);
     const flip = () => { if (flipped) return; flipped = true; card.querySelector('.def').hidden = false; card.querySelector('#tap').hidden = true; rate.hidden = false; };
     card.addEventListener('click', flip);
     rate.querySelectorAll('button').forEach((b, i) => b.addEventListener('click', () => { S.cards[t.id] = SRS.rate(S.cards[t.id], i + 1); Store.save(); Store.touchStreak(); queue.shift(); if (i === 0) queue.push(t); st = SRS.stats(S.cards, wk); stats.querySelectorAll('.n')[0].textContent = st.due; stats.querySelectorAll('.n')[3].textContent = st.mature; show(); }));
     const onKey = e => { if (!document.body.contains(card)) { document.removeEventListener('keydown', onKey); return; } if (e.code === 'Space') { e.preventDefault(); flip(); } else if (flipped && /^[1-4]$/.test(e.key)) rate.querySelectorAll('button')[+e.key - 1].click(); };
     document.addEventListener('keydown', onKey);
-    area.appendChild(card); area.appendChild(rate);
+    Notes.enable(card, { source: 'card' }); area.appendChild(card); area.appendChild(rate);
     area.appendChild(h(`<p class="small muted" style="text-align:center;margin-top:10px">키보드: <kbd>Space</kbd> 뒤집기 · <kbd>1</kbd>~<kbd>4</kbd> 평가</p>`));
   }
   show();
@@ -128,7 +132,7 @@ register('tutor', (view, { lessonId } = {}) => {
   ctx.querySelector('#clear').addEventListener('click', () => { chat[key] = []; Store.save(); go('tutor', { lessonId: L.id }); });
   ctx.querySelector('#ctx').addEventListener('click', () => { const sel = h(`<select style="margin:6px 0"></select>`); App.allLessons().forEach(l => sel.appendChild(h(`<option value="${l.id}" ${l.id === L.id ? 'selected' : ''}>${l.week}주 ${l.day}일 — ${l.title}</option>`))); sel.addEventListener('change', () => go('tutor', { lessonId: sel.value })); ctx.after(sel); });
   view.appendChild(ctx);
-  const box = h(`<div class="chat"></div>`); view.appendChild(box);
+  const box = h(`<div class="chat"></div>`); view.appendChild(box); Notes.enable(box, { lessonId: L.id, source: 'tutor' });
   const chips = h(`<div class="chips"><button class="chip">그냥 설명해줘</button><button class="chip">내 보유 종목으로 예를 들어줘</button><button class="chip">이 개념이 공시 어디에 나와?</button><button class="chip">지금 시장 상황과 어떻게 연결돼?</button><button class="chip">이해했는지 퀴즈 내줘</button></div>`);
   view.appendChild(chips);
   const comp = h(`<div class="composer"><textarea id="inp" placeholder="답하거나 질문하세요… (Enter 전송, Shift+Enter 줄바꿈)"></textarea><button class="btn" id="send">전송</button></div>`); view.appendChild(comp);

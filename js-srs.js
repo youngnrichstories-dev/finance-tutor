@@ -19,7 +19,7 @@ const SRS = (() => {
     c.last = t; return c;
   }
   // 학습 가능한 카드: 현재 진도 주차까지의 용어 (설정에서 '전체 열기' 가능)
-  function pool(maxWeek) { return window.TERMS.filter(x => x.week <= maxWeek); }
+  function pool(maxWeek) { const my = window.Notes ? Notes.words() : {}; const mine = new Set(Object.values(my).map(e => e.termId).filter(Boolean)); return window.TERMS.filter(x => x.week <= maxWeek || mine.has(x.id)).concat(window.Notes ? Notes.asCards() : []); }
   function dueCards(cards, maxWeek) {
     const t = Store.today();
     return pool(maxWeek).filter(term => { const c = cards[term.id]; return !c || c.due <= t; });

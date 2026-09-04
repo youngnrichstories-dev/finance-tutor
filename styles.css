@@ -166,3 +166,10 @@ kbd { font-family: var(--mono); font-size: 12px; background: var(--surface-2); b
   h1 { font-size: 21px; }
   .flash .term { font-size: 24px; }
 }
+
+/* 용어 링크 & 팝오버 (내 노트) */
+.term-link { border-bottom: 1px dotted var(--accent); cursor: pointer; color: inherit; }
+.term-link:hover { background: var(--accent-soft); }
+.term-pop { position: absolute; z-index: 50; max-width: 360px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; box-shadow: 0 8px 30px rgba(0,0,0,.15); font-size: 14px; line-height: 1.5; }
+.pill.small { font-size: 11px; padding: 2px 8px; }
+@media (max-width: 760px) { .sidenav button { font-size: 10px; } .term-pop { max-width: calc(100vw - 16px); } }
