@@ -52,13 +52,13 @@ const Notes = (() => {
   // 용어 팝오버 & 드래그 선택 버튼
   let pop = null;
   function closePop() { if (pop) { pop.remove(); pop = null; } }
-  function showPop(x, y, html) { closePop(); pop = h(`<div class="term-pop">${html}</div>`); document.body.appendChild(pop); const w = pop.offsetWidth, vw = window.innerWidth; pop.style.left = Math.max(8, Math.min(x - w / 2, vw - w - 8)) + 'px'; pop.style.top = (y + window.scrollY + 8) + 'px'; }
+  function showPop(x, y, html) { closePop(); pop = h(`<div class="term-pop">${html}</div>`); document.body.appendChild(pop); if (window.Speech) Speech.decorate(pop); const w = pop.offsetWidth, vw = window.innerWidth; pop.style.left = Math.max(8, Math.min(x - w / 2, vw - w - 8)) + 'px'; pop.style.top = (y + window.scrollY + 8) + 'px'; }
   function enable(container, ctx = {}) {
     container.addEventListener('click', e => {
       const a = e.target.closest('.term-link'); if (!a) return;
       const t = window.TERMS.find(x => x.id === a.dataset.term); if (!t) return; const r = a.getBoundingClientRect();
       const inMy = !!words()[key(t.ko)];
-      showPop(r.left + r.width / 2, r.bottom, `<b>${t.ko}</b> <span class="muted small">${t.en} · ${t.week}주차</span><div style="margin:6px 0">${MD.inline(t.def)}</div><div class="small muted">💡 ${MD.inline(t.hint)}</div><div class="row" style="margin-top:8px"><button class="btn small ${inMy ? 'secondary' : ''}" id="pp-add">${inMy ? '✓ 내 단어장에 있음' : '＋ 내 단어장에 추가'}</button><button class="btn small secondary" id="pp-close">닫기</button></div>`);
+      showPop(r.left + r.width / 2, r.bottom, `<b>${t.ko}</b> <span class="muted small"><span data-speak="${MD.esc(t.en)}">${t.en} 🔊</span> · ${t.week}주차</span><div style="margin:6px 0">${MD.inline(t.def)}</div><div class="small muted">💡 ${MD.inline(t.hint)}</div><div class="row" style="margin-top:8px"><button class="btn small ${inMy ? 'secondary' : ''}" id="pp-add">${inMy ? '✓ 내 단어장에 있음' : '＋ 내 단어장에 추가'}</button><button class="btn small secondary" id="pp-close">닫기</button></div>`);
       pop.querySelector('#pp-add').addEventListener('click', () => { add(t.ko, Object.assign({ source: 'term' }, ctx)); closePop(); });
       pop.querySelector('#pp-close').addEventListener('click', closePop);
       e.stopPropagation();
@@ -70,7 +70,8 @@ const Notes = (() => {
         if (!sel.anchorNode || !container.contains(sel.anchorNode)) return;
         const range = sel.getRangeAt(0); const r = range.getBoundingClientRect();
         const sentence = (sel.anchorNode.textContent || '').trim();
-        showPop(r.left + r.width / 2, r.bottom, `<div class="row"><button class="btn small" id="pp-add">＋ "${MD.esc(txt)}" 모르는 단어로 저장</button><button class="btn small secondary" id="pp-close">✕</button></div>`);
+        showPop(r.left + r.width / 2, r.bottom, `<div class="row"><button class="btn small" id="pp-add">＋ "${MD.esc(txt)}" 모르는 단어로 저장</button>${window.Speech && Speech.isEnglish(txt) ? `<button class="btn small secondary" id="pp-say">🔊 발음</button>` : ''}<button class="btn small secondary" id="pp-close">✕</button></div>`);
+        const say = pop.querySelector('#pp-say'); if (say) say.addEventListener('click', () => Speech.speak(txt));
         pop.querySelector('#pp-add').addEventListener('click', () => { add(txt, Object.assign({ source: 'select', sentence }, ctx)); sel.removeAllRanges(); closePop(); });
         pop.querySelector('#pp-close').addEventListener('click', closePop);
       }, 10);
@@ -95,7 +96,7 @@ const Notes = (() => {
       for (const [k, e] of Object.entries(words()).sort((a, b) => b[1].date.localeCompare(a[1].date))) {
         const L = e.lessonId ? App.lessonById(e.lessonId) : null; const c = Store.get().cards[e.termId || ('my_' + k)];
         const st = e.status === 'loading' ? '<span class="spinner"></span> 정의 받는 중' : e.status === 'nokey' ? '<span class="err">정의 없음 (API 키 필요)</span>' : e.status === 'error' ? `<span class="err">정의 실패: ${MD.esc(e.err || '')}</span>` : e.status === 'pending' ? '정의 대기' : '';
-        const card = h(`<div class="card"><div class="row spread"><div><b style="font-size:17px">${MD.esc(e.word)}</b> ${e.termId ? `<span class="pill small info">용어집</span>` : '<span class="pill small">내 단어</span>'} <span class="small muted">${e.date}${L ? ` · ${L.week}주차 ${L.title}` : ''}${c && c.last ? ` · 카드 간격 ${c.ivl}일` : ' · 카드 미복습'}</span></div><span class="small muted">${st}</span></div>
+        const card = h(`<div class="card"><div class="row spread"><div><b style="font-size:17px">${MD.esc(e.word)}</b> ${e.termId ? `<span class="pill small info">용어집</span> <span class="small muted" data-speak="${MD.esc((window.TERMS.find(x => x.id === e.termId) || {}).en || '')}">${MD.esc((window.TERMS.find(x => x.id === e.termId) || {}).en || '')} 🔊</span>` : '<span class="pill small">내 단어</span>'} <span class="small muted">${e.date}${L ? ` · ${L.week}주차 ${L.title}` : ''}${c && c.last ? ` · 카드 간격 ${c.ivl}일` : ' · 카드 미복습'}</span></div><span class="small muted">${st}</span></div>
           ${e.def ? `<div style="margin:8px 0 4px">${MD.inline(e.def)}</div>` : ''}${e.hint ? `<div class="small" style="color:var(--accent)">💡 ${MD.inline(e.hint)}</div>` : ''}${e.sentence ? `<div class="small muted" style="margin-top:4px">원문: "${MD.esc(e.sentence.slice(0, 120))}"</div>` : ''}
           <textarea class="mynote" placeholder="나만의 정리 — 내 말로 다시 쓰기, 내 사업에 빗대기, 헷갈리는 점" style="min-height:56px;margin-top:8px">${MD.esc(e.note || '')}</textarea>
           <div class="row" style="margin-top:8px"><button class="btn small secondary n-save">정리 저장</button>${e.status !== 'ready' && e.status !== 'loading' ? '<button class="btn small secondary n-refetch">정의 다시 받기</button>' : ''}<button class="btn small secondary n-ask">튜터에게 묻기</button><button class="btn small secondary n-del" style="margin-left:auto">삭제</button></div></div>`);
