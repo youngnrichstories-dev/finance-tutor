@@ -13,22 +13,30 @@ const App = (() => {
     renderStreak();
   }
   function renderStreak() { const who = document.getElementById('who'); const a = Store.active(); who.textContent = a ? `👤 ${a.settings.name || '이름 없음'} · ${(Store.LEVELS[a.settings.level] || Store.LEVELS.beginner).label}` : '👤 사용자 선택'; const n = Store.currentStreak(); const el = document.getElementById('streak'); el.textContent = n ? `🔥 ${n}일 연속` : '오늘 첫 학습을 시작하세요'; el.className = 'pill ' + (n ? '' : 'muted'); }
-  // ---- 커리큘럼 헬퍼
-  const allLessons = () => window.CURRICULUM.flatMap(w => w.lessons.map(l => Object.assign({ week: w.week, weekTitle: w.title }, l)));
+  // ---- 트랙·커리큘럼 헬퍼 (트랙 = 기업 이해 12주 / 자산배분 6단계)
+  window.TRACKS = window.TRACKS || {};
+  window.TRACKS.company = { id: 'company', title: '기업 이해 (12주)', short: '기업 이해', unit: '주차', practiceLabel: '📄 공시 읽기 연습 — 오늘 실제 IR 자료에서 할 것', desc: '재무제표 → 비율·성장 → 밸류에이션 → 경영자 관점·공시 → 거시·원칙.', weeks: window.CURRICULUM };
+  const TRACK_ORDER = ['company', 'alloc'];
+  const tracks = () => TRACK_ORDER.filter(k => window.TRACKS[k]).map(k => window.TRACKS[k]);
+  function track(id) { return window.TRACKS[id] || window.TRACKS.company; }
+  function activeTrackId() { return (Store.active() && Store.get().settings.track) || 'company'; }
+  function setTrack(id) { Store.get().settings.track = id; Store.save(); }
+  function trackOfLesson(id) { return id && id.startsWith('a') ? 'alloc' : 'company'; }
+  const allLessons = (tid) => (tid ? [track(tid)] : tracks()).flatMap(t => t.weeks.flatMap(w => w.lessons.map(l => Object.assign({ track: t.id, week: w.week, weekTitle: w.title, stage: w.stage || null, unit: t.unit }, l))));
   function lessonById(id) { return allLessons().find(l => l.id === id); }
   function isDone(id) { return !!Store.get().progress.completed[id]; }
-  function nextLesson() { return allLessons().find(l => !isDone(l.id)) || allLessons()[allLessons().length - 1]; }
-  function currentWeek() { const n = nextLesson(); return n ? n.week : 12; }
+  function nextLesson(tid) { const a = allLessons(tid || activeTrackId()); return a.find(l => !isDone(l.id)) || a[a.length - 1]; }
+  function currentWeek(tid) { const n = nextLesson(tid || activeTrackId()); return n ? n.week : track(tid || activeTrackId()).weeks.length; }
   function level() { return Store.LEVELS[Store.get().settings.level] || Store.LEVELS.beginner; }
-  function isFastWeek(week) { return week <= level().fastWeeks && !Store.get().progress.fastPassed[week]; }
-  // 빠른 통과 테스트용 문제: 주차의 5개 레슨에서 각 1문항
-  function fastQuiz(week) { const w = window.CURRICULUM.find(x => x.week === week); return w.lessons.map(l => { const q = l.quiz[Math.floor(Math.random() * l.quiz.length)]; return Object.assign({ lessonId: l.id, lessonTitle: l.title }, q); }); }
-  function passWeek(week) { const P = Store.get().progress; P.fastPassed[week] = Store.today(); for (const l of window.CURRICULUM.find(x => x.week === week).lessons) if (!P.completed[l.id]) P.completed[l.id] = 'fast:' + Store.today(); Store.save(); }
-  // 배치 테스트: 기초(1~4주) 4문항, 비율·성장(5~6주) 3문항, 밸류에이션·경영(7~9주) 3문항
-  function placementQuiz() { const pick = (wk, day) => { const l = window.CURRICULUM.find(x => x.week === wk).lessons[day - 1]; const q = l.quiz[0]; return Object.assign({ week: wk }, q); }; return [pick(1,2), pick(2,3), pick(3,1), pick(4,3), pick(5,2), pick(5,3), pick(6,2), pick(7,1), pick(8,2), pick(9,1)]; }
+  // 통과 테스트 가능 여부: 기업 트랙은 레벨의 fastWeeks까지, 자산배분 트랙은 모든 단계(입문~마스터 어디서든 시작 가능)
+  function isFastWeek(week, tid) { tid = tid || activeTrackId(); const P = Store.get().progress; P.fastPassed = P.fastPassed || {}; const key = tid === 'company' ? String(week) : tid + ':' + week; if (P.fastPassed[key]) return false; if (tid === 'alloc') return weekProgress(week, tid) < 1; return week <= level().fastWeeks; }
+  function fastQuiz(week, tid) { const w = track(tid || activeTrackId()).weeks.find(x => x.week === week); return w.lessons.map(l => { const q = l.quiz[Math.floor(Math.random() * l.quiz.length)]; return Object.assign({ lessonId: l.id, lessonTitle: l.title }, q); }); }
+  function passWeek(week, tid) { tid = tid || activeTrackId(); const P = Store.get().progress; P.fastPassed = P.fastPassed || {}; P.fastPassed[tid === 'company' ? String(week) : tid + ':' + week] = Store.today(); for (const l of track(tid).weeks.find(x => x.week === week).lessons) if (!P.completed[l.id]) P.completed[l.id] = 'fast:' + Store.today(); Store.save(); }
+  // 배치 테스트(기업 트랙 기준): 기초(1~4주) 4문항, 비율·성장(5~6주) 3문항, 밸류에이션·경영(7~9주) 3문항
+  function placementQuiz() { const pick = (wk, day) => { const l = window.TRACKS.company.weeks.find(x => x.week === wk).lessons[day - 1]; const q = l.quiz[0]; return Object.assign({ week: wk }, q); }; return [pick(1,2), pick(2,3), pick(3,1), pick(4,3), pick(5,2), pick(5,3), pick(6,2), pick(7,1), pick(8,2), pick(9,1)]; }
   function placementLevel(answers, quiz) { let b = 0, r = 0, v = 0; quiz.forEach((q, i) => { const ok = answers[i] === q.a; if (q.week <= 4) b += ok; else if (q.week <= 6) r += ok; else v += ok; }); if (b >= 3 && r >= 2 && v >= 2) return { level: 'advanced', b, r, v }; if (b >= 3) return { level: 'intermediate', b, r, v }; return { level: 'beginner', b, r, v }; }
-  function weekProgress(week) { const ls = window.CURRICULUM.find(w => w.week === week).lessons; return ls.filter(l => isDone(l.id)).length / ls.length; }
-  function totalProgress() { const a = allLessons(); return a.filter(l => isDone(l.id)).length / a.length; }
+  function weekProgress(week, tid) { const ls = track(tid || activeTrackId()).weeks.find(w => w.week === week).lessons; return ls.filter(l => isDone(l.id)).length / ls.length; }
+  function totalProgress(tid) { const a = allLessons(tid || activeTrackId()); return a.filter(l => isDone(l.id)).length / a.length; }
   function daysSinceStart() { const s = new Date(Store.get().settings.startDate); return Math.max(0, Math.floor((Date.now() - s) / 86400000)); }
   // ---- 공용 UI
   function h(html) { const t = document.createElement('template'); t.innerHTML = html.trim(); if (t.content.children.length === 1) return t.content.firstElementChild; const d = document.createElement('div'); d.append(t.content); return d; }
@@ -40,5 +48,5 @@ const App = (() => {
   }
   document.addEventListener('click', e => { const b = e.target.closest('[data-go]'); if (b) { go(b.dataset.go, b.dataset.params ? JSON.parse(b.dataset.params) : {}); } });
   window.addEventListener('DOMContentLoaded', () => { go(Store.active() ? 'home' : 'profiles'); });
-  return { register, go, h, toast, needKey, allLessons, lessonById, isDone, nextLesson, currentWeek, level, isFastWeek, fastQuiz, passWeek, placementQuiz, placementLevel, weekProgress, totalProgress, daysSinceStart, current: () => current };
+  return { register, go, h, toast, needKey, tracks, track, activeTrackId, setTrack, trackOfLesson, allLessons, lessonById, isDone, nextLesson, currentWeek, level, isFastWeek, fastQuiz, passWeek, placementQuiz, placementLevel, weekProgress, totalProgress, daysSinceStart, current: () => current };
 })();

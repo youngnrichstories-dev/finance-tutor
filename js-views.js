@@ -4,25 +4,27 @@ const { h, register, go, toast } = App;
 
 // ───────────────────────── 오늘 (홈)
 register('home', (view) => {
-  const S = Store.get(); const next = App.nextLesson(); const wk = App.currentWeek();
-  const week = window.CURRICULUM.find(w => w.week === wk);
+  const S = Store.get(); const tid = App.activeTrackId(); const T = App.track(tid); const next = App.nextLesson(); const wk = App.currentWeek();
+  const week = T.weeks.find(w => w.week === wk);
   const cs = SRS.stats(S.cards, wk); const total = Math.round(App.totalProgress() * 100);
-  const day = App.daysSinceStart();
+  const day = App.daysSinceStart(); const nLessons = App.allLessons(tid).length; const doneN = App.allLessons(tid).filter(l => App.isDone(l.id)).length;
+  const tabs = h(`<div class="chips" style="margin-bottom:10px">${App.tracks().map(t => `<button class="chip ${t.id === tid ? 'active' : ''}" data-track="${t.id}">${t.id === 'company' ? '🏢' : '🧭'} ${t.title} · ${Math.round(App.totalProgress(t.id) * 100)}%</button>`).join('')}</div>`);
+  tabs.querySelectorAll('.chip').forEach(c => c.addEventListener('click', () => { App.setTrack(c.dataset.track); go('home'); }));
+  view.appendChild(h(`<h1>${S.settings.name ? S.settings.name + '님, ' : ''}오늘의 학습</h1>`)); view.appendChild(tabs);
   view.appendChild(h(`
-    <h1>${S.settings.name ? S.settings.name + '님, ' : ''}오늘의 학습</h1>
-    <p class="sub">${App.level().label} 과정 · 시작한 지 ${day}일째 · ${wk}주차 「${week.title}」 · 전체 진도 ${total}%</p>
+    <p class="sub">${tid === 'company' ? App.level().label + ' 과정 · ' : ''}시작한 지 ${day}일째 · ${week.stage ? wk + '단계 ' + week.stage : wk + '주차'} 「${week.title}」 · 트랙 진도 ${total}%</p>
     <div class="progress" style="margin-bottom:18px"><div style="width:${total}%"></div></div>
     <div class="stats card">
-      <div class="stat"><div class="n">${Object.keys(S.progress.completed).length}<span class="muted" style="font-size:14px">/60</span></div><div class="l">레슨 완료</div></div>
+      <div class="stat"><div class="n">${doneN}<span class="muted" style="font-size:14px">/${nLessons}</span></div><div class="l">레슨 완료</div></div>
       <div class="stat"><div class="n">${cs.due}</div><div class="l">복습할 카드</div></div>
       <div class="stat"><div class="n">${cs.mature}<span class="muted" style="font-size:14px">/${cs.total}</span></div><div class="l">숙련 용어</div></div>
       <div class="stat"><div class="n">${Store.currentStreak()}</div><div class="l">연속 학습일</div></div>
     </div>`));
-  if (App.isFastWeek(wk)) view.appendChild(h(`<div class="callout disc" style="margin-top:0"><div class="t">⚡ ${App.level().label} 과정: ${wk}주차는 통과 테스트로 건너뛸 수 있습니다</div><p>5문항 중 4개 이상 맞히면 이 주차가 완료 처리됩니다. 통과 못 하면 그 주차를 정독하세요.</p><div class="row" style="margin-top:8px"><button class="btn small" data-go="fastpass" data-params='${JSON.stringify({ week: wk })}'>${wk}주차 통과 테스트 (3분)</button><button class="btn small secondary" data-go="lesson" data-params='${JSON.stringify({ id: next.id })}'>그냥 정독하기</button></div></div>`));
+  if (App.isFastWeek(wk)) view.appendChild(h(`<div class="callout disc" style="margin-top:0"><div class="t">⚡ ${tid === 'company' ? App.level().label + ' 과정: ' + wk + '주차는' : wk + '단계(' + week.stage + ')는 이미 아는 내용이면'} 통과 테스트로 건너뛸 수 있습니다</div><p>${week.lessons.length}문항 중 ${week.lessons.length - 1}개 이상 맞히면 이 ${T.unit}가 완료 처리됩니다. 통과 못 하면 정독하세요.</p><div class="row" style="margin-top:8px"><button class="btn small" data-go="fastpass" data-params='${JSON.stringify({ week: wk, track: tid })}'>${wk}${T.unit} 통과 테스트 (3분)</button><button class="btn small secondary" data-go="lesson" data-params='${JSON.stringify({ id: next.id })}'>그냥 정독하기</button></div></div>`));
   // 오늘의 3단계
   const steps = h(`<div class="card"><h2 style="margin-top:0">오늘의 루틴 (약 25분)</h2></div>`);
   const pr = window.PRACTICE[next.id] || {};
-  steps.appendChild(h(`<div class="lesson-row" data-go="lesson" data-params='${JSON.stringify({ id: next.id })}'><span class="check ${App.isDone(next.id) ? 'done' : ''}">${App.isDone(next.id) ? '✓' : '1'}</span><div><b>레슨 · ${next.week}주차 ${next.day}일차 — ${next.title}</b><div class="small muted">${next.minutes}분 읽기 + 퀴즈 3문항 + 공시 읽기 연습 + 시장 흐름 연결</div></div></div>`));
+  steps.appendChild(h(`<div class="lesson-row" data-go="lesson" data-params='${JSON.stringify({ id: next.id })}'><span class="check ${App.isDone(next.id) ? 'done' : ''}">${App.isDone(next.id) ? '✓' : '1'}</span><div><b>레슨 · ${next.week}${next.unit} ${next.day}일차 — ${next.title}</b><div class="small muted">${next.minutes}분 읽기 + 퀴즈 3문항 + ${tid === 'company' ? '공시 읽기 연습' : '실전 연습'} + 시장 흐름 연결</div></div></div>`));
   steps.appendChild(h(`<div class="lesson-row" data-go="cards"><span class="check">2</span><div><b>용어 카드 복습 — ${cs.due}장</b><div class="small muted">간격반복. 매일 10분이면 3개월 뒤에도 남습니다</div></div></div>`));
   steps.appendChild(h(`<div class="lesson-row" data-go="tutor" data-params='${JSON.stringify({ lessonId: next.id })}'><span class="check">3</span><div><b>튜터와 5분 — 소크라테스식 질문</b><div class="small muted">"${MD.esc(next.socratic.slice(0, 70))}…"</div></div></div>`));
   view.appendChild(steps);
@@ -35,16 +37,20 @@ register('home', (view) => {
   if (!Store.device().apiKey) view.appendChild(h(`<div class="card"><b>처음이신가요?</b><p class="muted small" style="margin:6px 0 10px">설정에서 Claude API 키와 보유 종목을 입력하면 튜터·종목분석·시장 브리핑이 활성화됩니다. 레슨과 카드는 지금 바로 가능합니다.</p><button class="btn small" data-go="settings">설정 열기</button></div>`));
 });
 
-// ───────────────────────── 커리큘럼
-register('curriculum', (view) => {
-  const wk = App.currentWeek();
+// ───────────────────────── 커리큘럼 (트랙 탭)
+register('curriculum', (view, { track } = {}) => {
+  const tid = track || App.activeTrackId(); if (track) App.setTrack(track); const T = App.track(tid); const wk = App.currentWeek(tid);
   const lv = App.level();
-  view.appendChild(h(`<h1>12주 커리큘럼 <span class="pill info" style="font-size:13px;vertical-align:middle">${lv.label}</span></h1><p class="sub">${lv.fastWeeks ? `${lv.label} 과정: 1~${lv.fastWeeks}주차는 ⚡ 통과 테스트로 건너뛸 수 있습니다. ` : ''}재무제표(1~4주) → 비율·성장(5~6주) → 밸류에이션(7~8주) → 경영자 관점·공시(9~10주) → 거시·원칙(11~12주). 매 레슨에 공시 읽기 연습과 시장 흐름 연결이 포함됩니다.</p>`));
+  const tabs = h(`<div class="tabs">${App.tracks().map(t => `<button class="${t.id === tid ? 'active' : ''}" data-t="${t.id}">${t.id === 'company' ? '🏢' : '🧭'} ${t.title} <span class="small muted">${Math.round(App.totalProgress(t.id) * 100)}%</span></button>`).join('')}</div>`);
+  tabs.querySelectorAll('button').forEach(b => b.addEventListener('click', () => go('curriculum', { track: b.dataset.t })));
+  view.appendChild(h(`<h1>커리큘럼</h1>`)); view.appendChild(tabs);
+  if (tid === 'company') view.appendChild(h(`<p class="sub"><span class="pill info">${lv.label}</span> ${lv.fastWeeks ? `${lv.label} 과정: 1~${lv.fastWeeks}주차는 ⚡ 통과 테스트로 건너뛸 수 있습니다. ` : ''}${T.desc} 매 레슨에 공시 읽기 연습과 시장 흐름 연결이 포함됩니다.</p>`));
+  else view.appendChild(h(`<p class="sub">${T.desc} 어느 단계든 이미 아는 내용이면 ⚡ 통과 테스트로 건너뛰고, 매 레슨에 '내 돈에서 오늘 할 것'과 시장 흐름 연결이 포함됩니다. 기업 트랙과 병행해도 되고, 자산배분부터 시작해도 됩니다.</p>`));
   const box = h(`<div class="card"></div>`);
-  for (const w of window.CURRICULUM) {
-    const p = App.weekProgress(w.week); const cls = p === 1 ? 'done' : w.week === wk ? 'cur' : '';
-    const fast = App.isFastWeek(w.week);
-    const row = h(`<div class="week-row"><div class="week-num ${cls}">${w.week}</div><div style="flex:1"><div class="row spread"><b>${w.title}</b><span class="row">${fast ? `<button class="btn small secondary" data-go="fastpass" data-params='${JSON.stringify({ week: w.week })}'>⚡ 통과 테스트</button>` : ''}<span class="small muted">${Math.round(p * 5)}/5</span></span></div><div class="small muted">${w.goal}</div><div class="progress" style="margin-top:6px"><div style="width:${p * 100}%"></div></div></div></div>`);
+  for (const w of T.weeks) {
+    const p = App.weekProgress(w.week, tid); const cls = p === 1 ? 'done' : w.week === wk ? 'cur' : '';
+    const fast = App.isFastWeek(w.week, tid);
+    const row = h(`<div class="week-row"><div class="week-num ${cls}">${w.week}</div><div style="flex:1"><div class="row spread"><b>${w.stage ? `<span class="pill small info" style="margin-right:6px">${w.stage}</span>` : ''}${w.title}</b><span class="row">${fast ? `<button class="btn small secondary" data-go="fastpass" data-params='${JSON.stringify({ week: w.week, track: tid })}'>⚡ 통과 테스트</button>` : ''}<span class="small muted">${Math.round(p * w.lessons.length)}/${w.lessons.length}</span></span></div><div class="small muted">${w.goal}</div><div class="progress" style="margin-top:6px"><div style="width:${p * 100}%"></div></div></div></div>`);
     row.style.cursor = 'pointer';
     row.addEventListener('click', (e) => { if (e.target.closest('[data-go]')) return; const ex = row.nextElementSibling; if (ex && ex.classList.contains('lessons')) { ex.remove(); return; } const ul = h(`<div class="lessons"></div>`); for (const l of w.lessons) ul.appendChild(h(`<div class="lesson-row" data-go="lesson" data-params='${JSON.stringify({ id: l.id })}'><span class="check ${App.isDone(l.id) ? 'done' : ''}">${App.isDone(l.id) ? '✓' : l.day}</span><div style="flex:1">${l.title}</div><span class="small muted">${l.minutes}분</span></div>`)); row.after(ul); });
     box.appendChild(row);
@@ -56,14 +62,15 @@ register('curriculum', (view) => {
 register('lesson', (view, { id }) => {
   const L = App.lessonById(id); if (!L) { go('curriculum'); return; }
   const pr = window.PRACTICE[L.id] || {}; const disc = L.disclosure || pr.disclosure || ''; const mkt = L.market || pr.market || '';
-  const S = Store.get(); S.progress.lastLesson = id; Store.save();
-  const all = App.allLessons(); const idx = all.findIndex(x => x.id === id); const prev = all[idx - 1], next = all[idx + 1];
-  view.appendChild(h(`<div class="row spread"><span class="pill info">${L.week}주차 · ${L.day}일차</span><span class="small muted">${L.minutes}분 · ${L.weekTitle}</span></div><h1 style="margin-top:8px">${L.title}</h1>`));
+  const S = Store.get(); S.progress.lastLesson = id; if (S.settings.track !== L.track) S.settings.track = L.track; Store.save();
+  const T = App.track(L.track);
+  const all = App.allLessons(L.track); const idx = all.findIndex(x => x.id === id); const prev = all[idx - 1], next = all[idx + 1];
+  view.appendChild(h(`<div class="row spread"><span class="pill info">${L.track === 'alloc' ? '🧭 자산배분 · ' + L.week + '단계 ' + (L.stage || '') : '🏢 ' + L.week + '주차'} · ${L.day}일차</span><span class="small muted">${L.minutes}분 · ${L.weekTitle}</span></div><h1 style="margin-top:8px">${L.title}</h1>`));
   const bodyEl = h(`<div class="card lesson-body">${MD.render(L.body)}</div>`); Notes.linkTerms(bodyEl); view.appendChild(bodyEl);
   view.appendChild(h(`<p class="small muted" style="margin:-6px 0 12px">모르는 말이 있으면 <span class="term-link">점선 단어</span>를 클릭하거나 아무 단어나 드래그하세요 → 내 노트와 용어 카드에 저장됩니다.</p>`));
   Notes.enable(view, { lessonId: id });
-  const ceoEl = h(`<div class="callout ceo"><div class="t">👔 경영자 관점</div><p>${MD.inline(L.ceo)}</p></div>`); Notes.linkTerms(ceoEl); view.appendChild(ceoEl);
-  view.appendChild(h(`<div class="callout disc"><div class="t">📄 공시 읽기 연습 — 오늘 실제 IR 자료에서 할 것</div><p>${MD.inline(disc)}</p><div class="row" style="margin-top:8px"><button class="btn small secondary" data-go="stocks" data-params='{"tab":"disc"}'>공시 해석 모드로 이동</button></div></div>`));
+  const ceoEl = h(`<div class="callout ceo"><div class="t">👔 ${L.track === 'alloc' ? '사업가의 자산배분' : '경영자 관점'}</div><p>${MD.inline(L.ceo)}</p></div>`); Notes.linkTerms(ceoEl); view.appendChild(ceoEl);
+  view.appendChild(h(`<div class="callout disc"><div class="t">${T.practiceLabel}</div><p>${MD.inline(disc)}</p><div class="row" style="margin-top:8px">${L.track === 'company' ? `<button class="btn small secondary" data-go="stocks" data-params='{"tab":"disc"}'>공시 해석 모드로 이동</button>` : `<button class="btn small secondary" data-go="tutor" data-params='${JSON.stringify({ lessonId: id })}'>튜터와 내 숫자로 해보기</button>`}</div></div>`));
   view.appendChild(h(`<div class="callout mkt"><div class="t">🌍 시장 흐름 연결 — 이 개념이 지금 세상과 닿는 곳</div><p>${MD.inline(mkt)}</p><div class="row" style="margin-top:8px"><button class="btn small secondary" data-go="market">오늘의 시장 브리핑 보기</button></div></div>`));
   // 용어
   const terms = L.terms.map(t => window.TERMS.find(x => x.id === t)).filter(Boolean);
@@ -95,7 +102,7 @@ register('lesson', (view, { id }) => {
 register('cards', (view) => {
   const S = Store.get(); const wk = S.settings.allCards ? 12 : App.currentWeek();
   let st = SRS.stats(S.cards, wk);
-  view.appendChild(h(`<h1>용어 카드</h1><p class="sub">${wk}주차까지의 용어 ${st.total}개 (전체 ${st.all}개). 카드를 눌러 뒤집고, 얼마나 쉽게 떠올렸는지 평가하세요.</p>`));
+  view.appendChild(h(`<h1>용어 카드</h1><p class="sub">현재 진도까지의 용어 ${st.total}개 (전체 ${st.all}개 — 기업 이해 + 자산배분 + 내 단어). 카드를 눌러 뒤집고, 얼마나 쉽게 떠올렸는지 평가하세요.</p>`));
   const stats = h(`<div class="stats card"><div class="stat"><div class="n">${st.due}</div><div class="l">오늘 복습</div></div><div class="stat"><div class="n">${st.new}</div><div class="l">새 카드</div></div><div class="stat"><div class="n">${st.learning}</div><div class="l">학습 중</div></div><div class="stat"><div class="n">${st.mature}</div><div class="l">숙련 (21일+)</div></div></div>`);
   view.appendChild(stats);
   const opts = h(`<div class="row" style="margin-bottom:12px"><label class="small"><input type="checkbox" id="allc" style="width:auto" ${S.settings.allCards ? 'checked' : ''}> 12주 전체 용어 열기</label><button class="btn small secondary" id="browse">용어집 보기</button></div>`);
@@ -103,12 +110,12 @@ register('cards', (view) => {
   view.appendChild(opts);
   let queue = SRS.dueCards(S.cards, wk).sort(() => Math.random() - .5).slice(0, 30);
   const area = h(`<div></div>`); view.appendChild(area);
-  opts.querySelector('#browse').addEventListener('click', () => { area.innerHTML = ''; const box = h(`<div class="card"><input placeholder="용어 검색 (한글/영문)" id="q" style="margin-bottom:10px"><div id="list"></div></div>`); const list = box.querySelector('#list'); const draw = (q = '') => { list.innerHTML = ''; window.TERMS.filter(t => t.week <= wk && (!q || (t.ko + t.en + t.def).toLowerCase().includes(q.toLowerCase()))).forEach(t => { const c = S.cards[t.id]; list.appendChild(h(`<div style="padding:8px 0;border-bottom:1px solid var(--line)"><div class="row spread"><b>${t.ko} <span class="muted small" data-speak="${MD.esc(t.en)}">${t.en} 🔊</span></b><span class="small muted">${t.week}주 · ${c && c.last ? `간격 ${c.ivl}일` : '새 카드'}</span></div><div class="small">${MD.inline(t.def)}</div></div>`)); }); }; box.querySelector('#q').addEventListener('input', e => draw(e.target.value)); draw(); area.appendChild(box); });
+  opts.querySelector('#browse').addEventListener('click', () => { area.innerHTML = ''; const box = h(`<div class="card"><input placeholder="용어 검색 (한글/영문)" id="q" style="margin-bottom:10px"><div id="list"></div></div>`); const list = box.querySelector('#list'); const draw = (q = '') => { list.innerHTML = ''; SRS.pool(wk).filter(t => !t.mine && (!q || (t.ko + t.en + t.def).toLowerCase().includes(q.toLowerCase()))).forEach(t => { const c = S.cards[t.id]; list.appendChild(h(`<div style="padding:8px 0;border-bottom:1px solid var(--line)"><div class="row spread"><b>${t.ko} <span class="muted small" data-speak="${MD.esc(t.en)}">${t.en} 🔊</span></b><span class="small muted">${t.track === 'alloc' ? '배분 ' + t.week + '단계' : t.week + '주'} · ${c && c.last ? `간격 ${c.ivl}일` : '새 카드'}</span></div><div class="small">${MD.inline(t.def)}</div></div>`)); }); }; box.querySelector('#q').addEventListener('input', e => draw(e.target.value)); draw(); area.appendChild(box); });
   function show() {
     area.innerHTML = '';
     if (!queue.length) { area.appendChild(h(`<div class="card" style="text-align:center;padding:40px"><div style="font-size:40px">🎉</div><b>오늘 복습 완료</b><p class="muted small">내일 다시 오세요. 레슨을 진행하면 새 용어가 추가됩니다.</p><button class="btn secondary small" id="more">새 카드 10장 더 학습</button></div>`)); area.querySelector('#more').addEventListener('click', () => { queue = SRS.pool(wk).filter(t => !S.cards[t.id]).slice(0, 10); if (!queue.length) queue = SRS.pool(wk).sort(() => Math.random() - .5).slice(0, 10); show(); }); return; }
     const t = queue[0]; let flipped = false;
-    const card = h(`<div class="card flash"><div class="small muted" style="margin-bottom:10px">${t.mine ? '내 단어' : t.week + '주차'} · 남은 카드 ${queue.length}</div><div class="term">${t.ko}</div><div class="en" data-speak="${MD.esc(t.en)}">${t.en}${t.mine ? '' : ' 🔊'}</div><div class="def" hidden>${MD.inline(t.def)}<div class="hint">💡 ${MD.inline(t.hint)}</div></div><div class="small muted" style="margin-top:16px" id="tap">눌러서 뒤집기 (<kbd>Space</kbd>)</div></div>`);
+    const card = h(`<div class="card flash"><div class="small muted" style="margin-bottom:10px">${t.mine ? '내 단어' : (t.track === 'alloc' ? '자산배분 ' + t.week + '단계' : t.week + '주차')} · 남은 카드 ${queue.length}</div><div class="term">${t.ko}</div><div class="en" data-speak="${MD.esc(t.en)}">${t.en}${t.mine ? '' : ' 🔊'}</div><div class="def" hidden>${MD.inline(t.def)}<div class="hint">💡 ${MD.inline(t.hint)}</div></div><div class="small muted" style="margin-top:16px" id="tap">눌러서 뒤집기 (<kbd>Space</kbd>)</div></div>`);
     const rate = h(`<div class="rate" hidden><button class="r1"><b>다시</b><span>오늘 다시</span></button><button class="r2"><b>어려움</b><span>1~3일</span></button><button class="r3"><b>좋음</b><span>2~5일+</span></button><button class="r4"><b>쉬움</b><span>4~8일+</span></button></div>`);
     const flip = () => { if (flipped) return; flipped = true; card.querySelector('.def').hidden = false; card.querySelector('#tap').hidden = true; rate.hidden = false; };
     card.addEventListener('click', flip);
@@ -196,7 +203,7 @@ register('stocks', (view, { tab = 'scan' } = {}) => {
 
 // ───────────────────────── 오늘의 시장
 register('market', (view) => {
-  const wk = App.currentWeek(); const w = window.CURRICULUM.find(x => x.week === wk);
+  const wk = App.currentWeek(); const w = App.track(App.activeTrackId()).weeks.find(x => x.week === wk);
   view.appendChild(h(`<h1>🌍 오늘의 시장</h1><p class="sub">웹검색으로 오늘 시장을 조사하고, 이번 주 개념 「${w.title}」으로 읽어줍니다. 예측이 아니라 '무슨 일이 있었고 내 종목과 어떻게 연결되는가'입니다.</p>`));
   if (App.needKey(view)) return;
   const S = Store.get(); const t = Store.today(); const cached = S.marketCache[t];

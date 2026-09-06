@@ -3,8 +3,11 @@
 const Prompts = (() => {
   function learner() {
     const s = Store.get().settings; const p = Store.get().progress;
-    const done = Object.keys(p.completed).length; const wk = App.currentWeek();
-    const learned = window.CURRICULUM.filter(w => w.week <= wk).map(w => `${w.week}주차 ${w.title}`).join(', ');
+    const wkC = App.currentWeek('company'), wkA = App.currentWeek('alloc');
+    const doneC = App.allLessons('company').filter(l => App.isDone(l.id)).length, doneA = App.allLessons('alloc').filter(l => App.isDone(l.id)).length;
+    const learnedC = window.TRACKS.company.weeks.filter(w => w.week <= wkC).map(w => `${w.week}주차 ${w.title}`).join(', ');
+    const learnedA = doneA ? window.TRACKS.alloc.weeks.filter(w => w.week <= wkA).map(w => `${w.week}단계 ${w.title}`).join(', ') : '아직 시작 안 함';
+    const done = doneC, wk = wkC, learned = learnedC + ` / [자산배분 트랙] ${doneA}/24 완료, 다룬 단계: ${learnedA}`;
     const lv = Store.LEVELS[s.level] || Store.LEVELS.beginner; const role = Store.ROLES[s.role] || Store.ROLES.family;
     return `## 학습자
 - 이름: ${s.name || '학습자'} / 관계: ${role.label} / 레벨: ${lv.label} (${lv.desc})
@@ -12,7 +15,8 @@ const Prompts = (() => {
 - 보유·관심 종목: ${s.holdings || '(미입력 — 종목 예시는 일반적인 미국 대형주로)'}
 - 비유 방식: ${role.analogy}
 - 레벨별 조정: 초급은 용어마다 한 줄 정의를 붙이고 숫자 예시를 단순하게, 중급은 정의 생략하고 비율·추세 중심으로, 고급은 반론과 예외 사례까지 포함해 밀도 있게.
-- 진도: 12주 과정 중 ${wk}주차 (레슨 ${done}/60 완료). 지금까지 다룬 주제: ${learned || '아직 없음'}
+- 진도: [기업 이해 트랙] 12주 중 ${wk}주차 (레슨 ${done}/60 완료), 다룬 주제: ${learned || '아직 없음'}
+- 현재 활성 트랙: ${App.activeTrackId() === 'alloc' ? '자산배분 (돈 전체를 어디에 얼마나 나눌 것인가 — 사업 지분·인적자본을 포함한 총자산 관점)' : '기업 이해 (개별 회사를 경영자 수준으로 읽기)'}
 - 목표: 3개월 안에 금융 용어에 익숙해지고, 투자한 회사를 '경영자 수준'으로 이해하기. 매 세션에 (1) 회사 공시 자료 해석 (2) 시장·세상의 흐름 이해가 포함되어야 함.`;
   }
   const commonRules = `## 공통 규칙
@@ -27,7 +31,8 @@ const Prompts = (() => {
     let ctx = '';
     if (lesson) {
       const pr = window.PRACTICE[lesson.id] || {};
-      ctx = `\n## 현재 레슨 (${lesson.week}주차 ${lesson.day}일차: ${lesson.title})\n${lesson.body.slice(0, 3500)}\n\n경영자 관점: ${lesson.ceo}\n공시 읽기 연습: ${lesson.disclosure || pr.disclosure || ''}\n시장 흐름 연결: ${lesson.market || pr.market || ''}\n튜터 시작 질문: ${lesson.socratic}`;
+      const isA = lesson.track === 'alloc';
+      ctx = `\n## 현재 레슨 (${isA ? '자산배분 트랙 ' + lesson.week + '단계 ' + (lesson.stage || '') : lesson.week + '주차'} ${lesson.day}일차: ${lesson.title})\n${lesson.body.slice(0, 3500)}\n\n${isA ? '사업가의 자산배분' : '경영자 관점'}: ${lesson.ceo}\n${isA ? '실전 연습(내 돈에서 할 것)' : '공시 읽기 연습'}: ${lesson.disclosure || pr.disclosure || ''}\n시장 흐름 연결: ${lesson.market || pr.market || ''}\n튜터 시작 질문: ${lesson.socratic}${isA ? '\n\n자산배분 트랙 추가 규칙: 학습자의 실제 숫자(자산 비중·비상금·낙폭 허용치·사업 지분 비율)를 물어서 그 숫자로 설명하라. 특정 상품·종목 매수를 권하지 말고 배분 원리와 학습자 스스로의 결정 틀에 집중하라. 세금은 변동 가능하니 확인을 권하라.' : ''}`;
     }
     return `당신은 '금융 근육' 앱의 개인 금융 선생님이다. 소크라테스식으로 가르친다.
 ${learner()}
@@ -94,15 +99,15 @@ ${commonRules}
   }
 
   function market(week) {
-    const w = window.CURRICULUM.find(x => x.week === week) || window.CURRICULUM[0];
-    const s = Store.get().settings;
+    const T = App.track(App.activeTrackId()); const w = T.weeks.find(x => x.week === week) || T.weeks[0];
+    const s = Store.get().settings; const unit = T.unit;
     return `당신은 '금융 근육' 앱의 '오늘의 시장' 브리퍼다. 웹 검색으로 **오늘(${Store.today()}, 한국 시간)** 기준 시장 상황을 조사해 학습자 수준에 맞게 브리핑한다.
 ${learner()}
 ${commonRules}
 ## 브리핑 원칙
 - 반드시 웹 검색으로 최신 정보를 확인하라. 검색 결과가 오늘 날짜가 아니면 "가장 최근 확인 가능한 시점: (날짜)"라고 명시.
 - 예측하지 마라. '무슨 일이 있었고, 시장이 어떻게 반응했고, 그것이 학습자의 종목과 이번 주 학습 개념에 어떻게 연결되는가'만.
-- 이번 주 학습 주제: **${w.week}주차 ${w.title}** — 브리핑의 각 항목을 이 주제의 개념과 연결하라.
+- 이번 주 학습 주제: **${T.short} 트랙 ${w.week}${unit} ${w.title}** — 브리핑의 각 항목을 이 주제의 개념과 연결하라.
 ## 출력 형식
 ## 오늘의 숫자
 표: 미국 10년물 금리 / 2년물 / S&P 500 / 나스닥 / VIX / 달러인덱스(DXY) / 원·달러 / 비트코인 / WTI — 각 값과 전일·전주 대비 방향. 모르면 "확인 필요".
