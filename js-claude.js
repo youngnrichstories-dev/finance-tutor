@@ -24,15 +24,23 @@ const Claude = (() => {
     try { return await fetch(url, opts); }
     catch (e) { throw new Error('Claude 서버에 연결하지 못했습니다 (' + e.message + '). 인터넷 연결을 확인하세요. 파일을 직접 열어(file://) 쓰는 중이라면 온라인 주소(https://youngnrichstories-dev.github.io/finance-tutor/)에서 사용하세요.'); }
   }
-  // 비스트리밍 호출 (웹검색 도구 포함 가능). 반환: { text, sources[] }
-  async function complete({ system, messages, maxTokens = 2500, webSearch = false, temperature = 0.5 }) {
-    const body = { model: await ensureModel(), max_tokens: maxTokens, system, messages, temperature };
+  // 최신 모델은 temperature를 받지 않는다. 한 번 거부당하면 기기 설정에 기억해 두고 다시 안 보냄.
+  const noTemp = () => !!Store.device().noTemperature;
+  function markNoTemp() { Store.device().noTemperature = true; Store.save(); }
+  const isTempError = t => /temperature/i.test(t || '') && /deprecat|not supported|unsupported|unexpected/i.test(t || '');
+
+  // 비스트리밍 호출 (웹검색 도구 포함 가능). 반환: { text, sources[], cost }
+  async function complete({ system, messages, maxTokens = 2500, webSearch = false, temperature = 0.5, feature = 'etc' }) {
+    Usage.check();
+    const m = await ensureModel();
+    const body = { model: m, max_tokens: maxTokens, system, messages };
+    if (!noTemp() && temperature != null) body.temperature = temperature;
     if (webSearch) body.tools = [{ type: 'web_search_20250305', name: 'web_search', max_uses: 6 }];
     const r = await safeFetch(BASE + '/messages', { method: 'POST', headers: headers(), body: JSON.stringify(body) });
     if (!r.ok) {
       const t = await r.text();
-      // 웹검색 도구가 거부되면 도구 없이 재시도
-      if (webSearch && /tool|web_search/i.test(t)) return complete({ system, messages, maxTokens, webSearch: false, temperature });
+      if (isTempError(t)) { markNoTemp(); return complete({ system, messages, maxTokens, webSearch, temperature: null, feature }); }
+      if (webSearch && /tool|web_search/i.test(t)) return complete({ system, messages, maxTokens, webSearch: false, temperature, feature });
       throw new Error(friendly(r.status, t));
     }
     const j = await r.json();
@@ -42,14 +50,22 @@ const Claude = (() => {
       else if (b.type === 'web_search_tool_result' && Array.isArray(b.content)) for (const x of b.content) if (x.url) sources.push({ url: x.url, title: x.title || x.url });
     }
     const seen = new Set(); const uniq = sources.filter(s => !seen.has(s.url) && seen.add(s.url)).slice(0, 8);
-    return { text, sources: uniq, usage: j.usage };
+    const cost = Usage.record(m, j.usage, feature);
+    return { text, sources: uniq, usage: j.usage, cost };
   }
   // 스트리밍 호출 (튜터 대화). onDelta(textChunk) 콜백. 반환: 전체 텍스트
-  async function stream({ system, messages, maxTokens = 1500, temperature = 0.6, onDelta }) {
-    const body = { model: await ensureModel(), max_tokens: maxTokens, system, messages, temperature, stream: true };
+  async function stream({ system, messages, maxTokens = 1500, temperature = 0.6, onDelta, feature = 'tutor' }) {
+    Usage.check();
+    const m = await ensureModel();
+    const body = { model: m, max_tokens: maxTokens, system, messages, stream: true };
+    if (!noTemp() && temperature != null) body.temperature = temperature;
     const r = await safeFetch(BASE + '/messages', { method: 'POST', headers: headers(), body: JSON.stringify(body) });
-    if (!r.ok) throw new Error(friendly(r.status, await r.text()));
-    const reader = r.body.getReader(); const dec = new TextDecoder(); let buf = '', full = '';
+    if (!r.ok) {
+      const t = await r.text();
+      if (isTempError(t)) { markNoTemp(); return stream({ system, messages, maxTokens, temperature: null, onDelta, feature }); }
+      throw new Error(friendly(r.status, t));
+    }
+    const reader = r.body.getReader(); const dec = new TextDecoder(); let buf = '', full = '', use = {};
     while (true) {
       const { value, done } = await reader.read(); if (done) break;
       buf += dec.decode(value, { stream: true });
@@ -58,15 +74,19 @@ const Claude = (() => {
         const line = p.split('\n').find(l => l.startsWith('data:')); if (!line) continue;
         try { const ev = JSON.parse(line.slice(5).trim());
           if (ev.type === 'content_block_delta' && ev.delta && ev.delta.type === 'text_delta') { full += ev.delta.text; onDelta && onDelta(ev.delta.text, full); }
+          if (ev.type === 'message_start' && ev.message && ev.message.usage) Object.assign(use, ev.message.usage);
+          if (ev.type === 'message_delta' && ev.usage) Object.assign(use, ev.usage);
           if (ev.type === 'error') throw new Error(ev.error && ev.error.message || 'stream error');
         } catch (e) { if (e.message !== 'Unexpected end of JSON input') throw e; }
       }
     }
+    Usage.record(m, use, feature);
     return full;
   }
   function friendly(status, t) {
     if (status === 401) return 'API 키가 유효하지 않습니다. 설정에서 다시 확인하세요.';
     if (status === 404) { const d = Store.device(); d.model = ''; Store.save(); return '선택한 모델을 찾을 수 없어 초기화했습니다. 다시 시도하면 자동으로 사용 가능한 모델을 고릅니다.'; }
+    if (/credit balance is too low/i.test(t)) return '계정의 API 크레딧이 부족합니다. console.anthropic.com → Plans & Billing에서 크레딧을 충전하세요. (충전 후 즉시 반영됩니다)';
     if (status === 400) return '요청 오류 (400): ' + t.slice(0, 300);
     if (status === 429) return '요청 한도 초과. 잠시 후 다시 시도하세요.';
     if (status === 529 || status === 503) return 'Claude 서버가 혼잡합니다. 잠시 후 다시 시도하세요.';

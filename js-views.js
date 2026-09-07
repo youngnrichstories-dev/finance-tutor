@@ -20,7 +20,6 @@ register('home', (view) => {
       <div class="stat"><div class="n">${cs.mature}<span class="muted" style="font-size:14px">/${cs.total}</span></div><div class="l">숙련 용어</div></div>
       <div class="stat"><div class="n">${Store.currentStreak()}</div><div class="l">연속 학습일</div></div>
     </div>`));
-  view.appendChild(levelCard());
   if (App.isFastWeek(wk)) view.appendChild(h(`<div class="callout disc" style="margin-top:0"><div class="t">⚡ ${tid === 'company' ? App.level().label + ' 과정: ' + wk + '주차는' : wk + '단계(' + week.stage + ')는 이미 아는 내용이면'} 통과 테스트로 건너뛸 수 있습니다</div><p>${week.lessons.length}문항 중 ${week.lessons.length - 1}개 이상 맞히면 이 ${T.unit}가 완료 처리됩니다. 통과 못 하면 정독하세요.</p><div class="row" style="margin-top:8px"><button class="btn small" data-go="fastpass" data-params='${JSON.stringify({ week: wk, track: tid })}'>${wk}${T.unit} 통과 테스트 (3분)</button><button class="btn small secondary" data-go="lesson" data-params='${JSON.stringify({ id: next.id })}'>그냥 정독하기</button></div></div>`));
   // 오늘의 3단계
   const steps = h(`<div class="card"><h2 style="margin-top:0">오늘의 루틴 (약 25분)</h2></div>`);
@@ -79,10 +78,10 @@ register('lesson', (view, { id }) => {
   for (const t of terms) { const c = h(`<button class="chip">${t.ko} <span class="muted" data-speak="${MD.esc(t.en)}">${t.en} 🔊</span></button>`); c.addEventListener('click', () => { const ex = tbox.querySelector('.tdef'); if (ex) ex.remove(); tbox.appendChild(h(`<div class="tdef small" style="padding:8px 10px;background:var(--surface-2);border-radius:8px"><b>${t.ko}</b> — ${MD.inline(t.def)}<div class="muted">💡 ${MD.inline(t.hint)}</div></div>`)); }); tbox.querySelector('.chips').appendChild(c); }
   view.appendChild(tbox);
   // 퀴즈
-  const qbox = h(`<div class="card"><h3 style="margin-top:0">확인 퀴즈</h3></div>`); let answered = 0, correct = 0; const wrongs = [];
+  const qbox = h(`<div class="card"><h3 style="margin-top:0">확인 퀴즈</h3></div>`); let answered = 0, correct = 0;
   L.quiz.forEach((q, qi) => {
     const qd = h(`<div class="quiz-q"><div class="q">${qi + 1}. ${MD.inline(q.q)}</div></div>`);
-    q.options.forEach((o, oi) => { const b = h(`<button class="opt">${MD.inline(o)}</button>`); b.addEventListener('click', () => { qd.querySelectorAll('.opt').forEach(x => x.disabled = true); if (oi === q.a) { b.classList.add('correct'); correct++; } else { b.classList.add('wrong'); wrongs.push({ q: q.q, chosen: q.options[oi], correct: q.options[q.a] }); qd.querySelectorAll('.opt')[q.a].classList.add('correct'); } qd.appendChild(h(`<div class="why">${oi === q.a ? '✓ 정답. ' : '✗ '}${MD.inline(q.why)}</div>`)); answered++; if (answered === L.quiz.length) finish(); }); qd.appendChild(b); });
+    q.options.forEach((o, oi) => { const b = h(`<button class="opt">${MD.inline(o)}</button>`); b.addEventListener('click', () => { qd.querySelectorAll('.opt').forEach(x => x.disabled = true); if (oi === q.a) { b.classList.add('correct'); correct++; } else { b.classList.add('wrong'); qd.querySelectorAll('.opt')[q.a].classList.add('correct'); } qd.appendChild(h(`<div class="why">${oi === q.a ? '✓ 정답. ' : '✗ '}${MD.inline(q.why)}</div>`)); answered++; if (answered === L.quiz.length) finish(); }); qd.appendChild(b); });
     qbox.appendChild(qd);
   });
   const result = h(`<div id="qres"></div>`); qbox.appendChild(result); view.appendChild(qbox);
@@ -92,7 +91,7 @@ register('lesson', (view, { id }) => {
   view.appendChild(foot);
   view.appendChild(h(`<div class="row spread" style="margin:10px 0 30px">${prev ? `<button class="btn secondary small" data-go="lesson" data-params='${JSON.stringify({ id: prev.id })}'>← ${prev.title}</button>` : '<span></span>'}${next ? `<button class="btn secondary small" data-go="lesson" data-params='${JSON.stringify({ id: next.id })}'>${next.title} →</button>` : ''}</div>`));
   function finish() {
-    const P = Store.get().progress; P.quiz[id] = { score: correct, total: L.quiz.length, date: Store.today(), wrong: wrongs };
+    const P = Store.get().progress; P.quiz[id] = { score: correct, total: L.quiz.length, date: Store.today() };
     if (!P.completed[id]) { P.completed[id] = Store.today(); Store.touchStreak(); toast(`레슨 완료! 퀴즈 ${correct}/${L.quiz.length}`); }
     Store.save(); result.innerHTML = `<div class="callout" style="margin-bottom:0"><b>퀴즈 결과 ${correct}/${L.quiz.length}</b> ${correct === L.quiz.length ? '— 완벽합니다.' : '— 틀린 문항의 해설을 다시 읽고, 튜터에게 그 개념을 물어보세요.'}</div>`;
     foot.querySelector('b').textContent = '✓ 완료한 레슨'; foot.querySelector('#markdone').textContent = '완료 취소'; App.go && document.getElementById('streak') && (function(){ const n=Store.currentStreak(); document.getElementById('streak').textContent = `🔥 ${n}일 연속`; })();
@@ -131,13 +130,12 @@ register('cards', (view) => {
 
 // ───────────────────────── 튜터 (소크라테스식)
 register('tutor', (view, { lessonId } = {}) => {
-  view.appendChild(h(`<h1>🎓 튜터</h1><p class="sub">답을 주지 않고 질문으로 이끕니다. 내 레벨·약한 용어·틀린 퀴즈를 알고 있어서, 잘하면 어려워지고 막히면 쉬워집니다. 막히면 "그냥 설명해줘"라고 하세요.</p>`));
+  view.appendChild(h(`<h1>🎓 튜터</h1><p class="sub">답을 주지 않고 질문으로 이끕니다. 막히면 "그냥 설명해줘"라고 하세요.</p>`));
   if (App.needKey(view)) return;
   const S = Store.get(); const chat = S.chats;
   const L = App.lessonById(lessonId || S.progress.lastLesson || App.nextLesson().id);
   const key = 'tutor_' + L.id; chat[key] = chat[key] || [];
-  const lv = Level.current();
-  const ctx = h(`<div class="row spread" style="margin-bottom:10px"><span class="row" style="gap:6px"><span class="pill info">맥락: ${L.week}주차 ${L.day}일차 — ${L.title}</span><span class="pill" data-go="level" style="cursor:pointer" title="튜터는 이 레벨과 약점 목록을 보고 난이도를 조절합니다">Lv.${lv.level.n} ${lv.level.title}</span></span><div class="row"><button class="btn small secondary" id="ctx">다른 레슨</button><button class="btn small secondary" id="clear">대화 지우기</button></div></div>`);
+  const ctx = h(`<div class="row spread" style="margin-bottom:10px"><span class="pill info">맥락: ${L.week}주차 ${L.day}일차 — ${L.title}</span><div class="row"><button class="btn small secondary" id="ctx">다른 레슨</button><button class="btn small secondary" id="clear">대화 지우기</button></div></div>`);
   ctx.querySelector('#clear').addEventListener('click', () => { chat[key] = []; Store.save(); go('tutor', { lessonId: L.id }); });
   ctx.querySelector('#ctx').addEventListener('click', () => { const sel = h(`<select style="margin:6px 0"></select>`); App.allLessons().forEach(l => sel.appendChild(h(`<option value="${l.id}" ${l.id === L.id ? 'selected' : ''}>${l.week}주 ${l.day}일 — ${l.title}</option>`))); sel.addEventListener('change', () => go('tutor', { lessonId: sel.value })); ctx.after(sel); });
   view.appendChild(ctx);
@@ -156,7 +154,7 @@ register('tutor', (view, { lessonId } = {}) => {
     try {
       const msgs = chat[key].slice(-16).map(m => ({ role: m.role, content: m.content }));
       if (!msgs.length) msgs.push({ role: 'user', content: '(시작) 오늘 레슨의 튜터 시작 질문으로 시작해 주세요.' });
-      const full = await Claude.stream({ system: Prompts.tutor(L), messages: msgs, onDelta: (_, acc) => { el.innerHTML = MD.render(acc); } });
+      const full = await Claude.stream({ system: Prompts.tutor(L), feature: 'tutor', messages: msgs, onDelta: (_, acc) => { el.innerHTML = MD.render(acc); } });
       el.classList.remove('typing'); chat[key].push({ role: 'assistant', content: full }); Store.save(); Store.touchStreak();
     } catch (e) { el.classList.remove('typing'); el.innerHTML = `<span class="err">${MD.esc(e.message)}</span>`; }
     busy = false; send.disabled = false; inp.focus();
@@ -165,56 +163,6 @@ register('tutor', (view, { lessonId } = {}) => {
   inp.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send.click(); } });
   chips.querySelectorAll('.chip').forEach(c => c.addEventListener('click', () => ask(c.textContent)));
   if (!chat[key].length) ask(null);
-});
-
-// ───────────────────────── 내 레벨
-function levelCard() {
-  const c = Level.current(); const L = c.level; const nx = c.next;
-  const ai = c.ai ? `<span class="pill info" title="최근 튜터 대화 품질 기준 AI 판정">AI 판정 Lv.${c.ai.level}</span>` : '';
-  return h(`<div class="card clickable" data-go="level" style="border-left:4px solid var(--accent)">
-    <div class="row spread"><div class="row" style="gap:8px"><span class="pill">🏅 Lv.${L.n}</span><b style="font-size:17px">${L.title}</b><span class="small muted">${L.job}</span></div><div class="row" style="gap:6px">${ai}<span class="small muted">${c.score.total}/1000점</span></div></div>
-    ${nx ? `<div class="progress" style="margin:10px 0 6px"><div style="width:${Math.round(nx.pct * 100)}%"></div></div><div class="small muted">다음: Lv.${nx.level.n} ${nx.level.title} — 부족한 것: ${MD.esc(nx.miss.slice(0, 3).join(' · '))}${nx.miss.length > 3 ? ' 외' : ''}</div>` : `<div class="small muted" style="margin-top:6px">최고 레벨입니다. 이제 반론을 받아치는 대화로 유지하세요.</div>`}
-  </div>`);
-}
-register('level', (view) => {
-  const c = Level.current(); const m = c.metrics; const sc = c.score; const w = Level.weaknesses();
-  view.appendChild(h(`<h1>🏅 내 레벨</h1><p class="sub">"얼마나 했나"(시스템 레벨)와 "실제로 아는가"(AI 판정)를 따로 봅니다. 튜터는 둘 다 보고 난이도를 맞춥니다. 기준은 현업 직급에 빗댄 것이라 정확히 일치하진 않지만, 각 레벨이 무엇을 할 수 있어야 하는지는 분명합니다.</p>`));
-  view.appendChild(levelCard());
-  // 점수 분해
-  const names = { breadth: '지식 폭 (레슨, 뒤 주차 가중)', accuracy: '정확도 (퀴즈, 표본 40개까지 할인)', terms: '용어 숙련 (간격반복)', practice: '실전 적용 (분석·브리핑·루틴 문장)', tutor: '튜터 대화 (내 발언 수)' };
-  const br = h(`<div class="card"><h3 style="margin-top:0">점수 ${sc.total}/1000 — 어디서 나왔나</h3></div>`);
-  for (const k of Object.keys(sc.parts)) br.appendChild(h(`<div style="margin:8px 0"><div class="row spread small"><span>${names[k]}</span><b>${sc.parts[k]}/${sc.max[k]}</b></div><div class="progress"><div style="width:${sc.parts[k] / sc.max[k] * 100}%"></div></div></div>`));
-  br.appendChild(h(`<div class="small muted" style="margin-top:10px">지표: 레슨 ${m.lessons}/${m.lessonsAll} · 퀴즈 정확도 ${Math.round(m.acc * 100)}% (${m.quizTaken}개) · 숙련 용어 ${m.mature}/${m.termsAll} · 분석 ${m.analyses}회 · 브리핑 ${m.briefings}회 · 튜터 ${m.tutorTurns}턴 · ${m.days}일째</div>`));
-  view.appendChild(br);
-  // AI 판정
-  const aiBox = h(`<div class="card"><div class="row spread"><div><b>AI 판정 — 실제로 아는가</b><div class="small muted">최근 튜터 대화에서 내 발언만 보고 냉정하게 매깁니다. 튜터와 10턴 이상 대화한 뒤 받으세요. 주 1회 권장.</div></div><button class="btn small" id="judge">${c.ai ? '다시 판정' : '판정 받기'}</button></div><div id="aires" style="margin-top:10px"></div></div>`);
-  const drawAi = (j) => { if (!j) return; aiBox.querySelector('#aires').innerHTML = `<div class="callout" style="margin:0"><div class="row spread"><b>Lv.${j.level} ${Level.LADDER[j.level].title}</b><span class="small muted">${j.date} · 확신 ${MD.esc(j.confidence || '')}</span></div><p style="margin:6px 0">${MD.inline(j.reason || '')}</p>${(j.strengths || []).length ? `<div class="small"><b>확인된 강점</b><ul style="margin:4px 0 8px">${j.strengths.map(x => `<li>${MD.inline(x)}</li>`).join('')}</ul></div>` : ''}${(j.gaps || []).length ? `<div class="small"><b>메워야 할 구멍</b><ul style="margin:4px 0 8px">${j.gaps.map(x => `<li>${MD.inline(x)}</li>`).join('')}</ul></div>` : ''}${(j.next || []).length ? `<div class="small"><b>이번 주 할 것</b><ul style="margin:4px 0 0">${j.next.map(x => `<li>${MD.inline(x)}</li>`).join('')}</ul></div>` : ''}</div>`; };
-  drawAi(c.ai);
-  aiBox.querySelector('#judge').addEventListener('click', async () => {
-    if (!Store.device().apiKey) { toast('설정에서 API 키를 먼저 입력하세요'); return; }
-    if (m.tutorTurns < 5) { toast('튜터와 먼저 5턴 이상 대화하세요'); return; }
-    const b = aiBox.querySelector('#judge'); b.disabled = true; aiBox.querySelector('#aires').innerHTML = `<span class="spinner"></span> <span class="small muted">대화 기록을 심사 중…</span>`;
-    try { const j = await Level.judge(); drawAi(j); toast(`AI 판정: Lv.${j.level}`); go('level'); } catch (e) { aiBox.querySelector('#aires').innerHTML = `<span class="err">${MD.esc(e.message)}</span>`; b.disabled = false; }
-  });
-  view.appendChild(aiBox);
-  // 약점
-  const wb = h(`<div class="card"><h3 style="margin-top:0">튜터가 알고 있는 내 약점</h3></div>`);
-  if (!w.weakTerms.length && !w.wrong.length) wb.appendChild(h(`<p class="small muted">아직 데이터가 없습니다. 퀴즈를 풀고 카드를 복습하면 여기에 쌓이고, 튜터가 이 목록을 우선으로 파고듭니다.</p>`));
-  if (w.weakTerms.length) wb.appendChild(h(`<div class="small"><b>약한 용어</b> — ${w.weakTerms.map(MD.esc).join(', ')}</div>`));
-  if (w.wrong.length) { const ul = h(`<div class="small" style="margin-top:8px"><b>최근 틀린 퀴즈</b><ul style="margin:4px 0 0"></ul></div>`); for (const x of w.wrong.slice(0, 6)) ul.querySelector('ul').appendChild(h(`<li><span class="muted">[${MD.esc(x.lesson)}]</span> ${MD.inline(x.q)} <span class="muted">→ 내 답 "${MD.esc(x.chosen)}"</span></li>`)); wb.appendChild(ul); }
-  if (w.strongWeeks.length) wb.appendChild(h(`<div class="small" style="margin-top:8px"><b>완주한 주차</b> — ${w.strongWeeks.join(', ')}</div>`));
-  view.appendChild(wb);
-  // 사다리
-  const lad = h(`<div class="card"><h3 style="margin-top:0">레벨 사다리 — 각 레벨의 기준</h3><p class="small muted">점수와 관문(게이트)을 모두 채워야 올라갑니다. 관문은 "점수는 되는데 실제로는 못 하는" 상태를 막기 위한 것입니다.</p></div>`);
-  for (const L of Level.LADDER) {
-    const miss = Level.gateMiss(L, m); const reached = c.level.n >= L.n; const isCur = c.level.n === L.n;
-    const gates = Object.entries(L.gate).map(([k, v]) => { const bad = miss.find(x => x.key === k); return `<span class="pill ${bad ? 'muted' : ''}" style="font-size:12px">${Level.GATE_LABEL[k]} ${Level.fmt(k, v)}${bad ? ` (지금 ${Level.fmt(k, bad.have)})` : ' ✓'}</span>`; }).join(' ');
-    lad.appendChild(h(`<div style="padding:10px 0;border-top:1px solid var(--line);${isCur ? 'background:var(--accent-soft);margin:0 -20px;padding:10px 20px;border-radius:8px' : ''}"><div class="row spread"><div><b>${reached ? '✓ ' : ''}Lv.${L.n} ${L.title}</b> <span class="small muted">${L.job} · ${L.min}점+</span></div>${isCur ? '<span class="pill">현재</span>' : ''}</div><div class="small" style="margin:4px 0">${L.desc}</div><div class="row" style="gap:4px">${gates || '<span class="small muted">관문 없음</span>'}</div></div>`));
-  }
-  view.appendChild(lad);
-  // 추이
-  const hist = (Store.get().level && Store.get().level.history) || [];
-  if (hist.length > 1) view.appendChild(h(`<div class="card small"><b>AI 판정 추이</b> — ${hist.map(x => `${x.date.slice(5)} Lv.${x.level}(${x.score}점)`).join(' → ')}</div>`));
 });
 
 // ───────────────────────── 종목분석 · 공시 해석
@@ -230,21 +178,21 @@ register('stocks', (view, { tab = 'scan' } = {}) => {
     const holds = S.settings.holdings.split(/[,\s]+/).filter(Boolean);
     const f = h(`<div class="card"><div class="field"><label>티커 또는 회사명</label><div class="row"><input id="tk" placeholder="예: TSLA" style="flex:1"><button class="btn" id="run">스캔</button></div><div class="chips" id="hc"></div><div class="help">웹검색(설정에서 켜짐)으로 최신 10-K·실적발표 기준 숫자를 찾습니다. 숫자는 반드시 원문에서 다시 확인하세요.</div></div></div>`);
     holds.forEach(t => { const c = h(`<button class="chip">${t}</button>`); c.addEventListener('click', () => { f.querySelector('#tk').value = t; }); f.querySelector('#hc').appendChild(c); });
-    f.querySelector('#run').addEventListener('click', async () => { const tk = f.querySelector('#tk').value.trim(); if (!tk) return; await runAnalysis(out, { title: `${tk} 스캔`, system: Prompts.stockScan(tk), user: `${tk} 를 위 형식으로 스캔해 주세요. 웹 검색으로 최신 공시 숫자를 확인하세요.`, webSearch: S.settings.webSearch, maxTokens: 4000 }); });
+    f.querySelector('#run').addEventListener('click', async () => { const tk = f.querySelector('#tk').value.trim(); if (!tk) return; await runAnalysis(out, { feature: 'scan', title: `${tk} 스캔`, system: Prompts.stockScan(tk), user: `${tk} 를 위 형식으로 스캔해 주세요. 웹 검색으로 최신 공시 숫자를 확인하세요.`, webSearch: S.settings.webSearch, maxTokens: 4000 }); });
     view.appendChild(f);
   } else if (tab === 'disc') {
     const f = h(`<div class="card"><div class="grid2"><div class="field"><label>문서 유형</label><select id="ty">${Object.entries(Prompts.disclosureTypes).map(([k, v]) => `<option value="${k}">${v.label}</option>`).join('')}</select></div><div class="field"><label>회사 (선택)</label><input id="tk" placeholder="예: PLTR"></div></div><div class="field"><label>공시 원문 붙여넣기</label><textarea id="tx" style="min-height:220px" placeholder="IR 페이지의 보도자료, 컨퍼런스콜 트랜스크립트 Q&A, 10-K의 한 섹션, 주주서한 등을 그대로 붙여넣으세요. 리스크 팩터 비교는 '=== 작년 ===' 과 '=== 올해 ===' 로 구분해서 붙여넣으세요."></textarea><div class="help">긴 문서는 핵심 섹션만(2~3만 자 이내). 먼저 직접 읽고, 튜터 해석과 비교하세요.</div></div><button class="btn" id="run">해부하기</button></div>`);
-    f.querySelector('#run').addEventListener('click', async () => { const tx = f.querySelector('#tx').value.trim(); if (tx.length < 200) { toast('원문이 너무 짧습니다 (200자 이상)'); return; } const ty = f.querySelector('#ty').value, tk = f.querySelector('#tk').value.trim(); await runAnalysis(out, { title: `${tk || '공시'} · ${Prompts.disclosureTypes[ty].label}`, system: Prompts.disclosure(ty, tk), user: `다음 원문을 해부해 주세요.\n\n<원문>\n${tx.slice(0, 60000)}\n</원문>`, webSearch: false, maxTokens: 4000 }); });
+    f.querySelector('#run').addEventListener('click', async () => { const tx = f.querySelector('#tx').value.trim(); if (tx.length < 200) { toast('원문이 너무 짧습니다 (200자 이상)'); return; } const ty = f.querySelector('#ty').value, tk = f.querySelector('#tk').value.trim(); await runAnalysis(out, { feature: 'disclosure', title: `${tk || '공시'} · ${Prompts.disclosureTypes[ty].label}`, system: Prompts.disclosure(ty, tk), user: `다음 원문을 해부해 주세요.\n\n<원문>\n${tx.slice(0, 60000)}\n</원문>`, webSearch: false, maxTokens: 4000 }); });
     view.appendChild(f);
   } else {
     if (!S.chats.analyses.length) out.appendChild(h(`<div class="card muted">아직 기록이 없습니다.</div>`));
     for (const a of [...S.chats.analyses].reverse()) { const c = h(`<div class="card"><div class="row spread"><b>${MD.esc(a.title)}</b><span class="small muted">${a.date}</span></div><div class="lesson-body" hidden>${MD.render(a.text)}${srcHtml(a.sources)}</div><div class="row" style="margin-top:8px"><button class="btn small secondary tog">펼치기</button><button class="btn small secondary del">삭제</button></div></div>`); c.querySelector('.tog').addEventListener('click', e => { const b = c.querySelector('.lesson-body'); b.hidden = !b.hidden; e.target.textContent = b.hidden ? '펼치기' : '접기'; }); c.querySelector('.del').addEventListener('click', () => { S.chats.analyses = S.chats.analyses.filter(x => x !== a); Store.save(); go('stocks', { tab: 'hist' }); }); out.appendChild(c); }
   }
   view.appendChild(out);
-  async function runAnalysis(out, { title, system, user, webSearch, maxTokens }) {
+  async function runAnalysis(out, { title, system, user, webSearch, maxTokens, feature }) {
     out.innerHTML = ''; const c = h(`<div class="card"><span class="spinner"></span> <span class="muted small">${webSearch ? '웹검색과 함께 ' : ''}분석 중… 30초~1분 걸릴 수 있습니다.</span></div>`); out.appendChild(c);
     try {
-      const r = await Claude.complete({ system, messages: [{ role: 'user', content: user }], webSearch, maxTokens, temperature: 0.3 });
+      const r = await Claude.complete({ system, messages: [{ role: 'user', content: user }], webSearch, maxTokens, temperature: 0.3, feature });
       c.innerHTML = `<div class="row spread"><b>${MD.esc(title)}</b><span class="small muted">${Store.today()}</span></div><div class="lesson-body">${MD.render(r.text)}</div>${srcHtml(r.sources)}<div class="row" style="margin-top:10px"><button class="btn small secondary" id="ttq">이 분석으로 튜터와 대화</button></div>`;
       S.chats.analyses.push({ title, text: r.text, sources: r.sources, date: Store.today() }); if (S.chats.analyses.length > 40) S.chats.analyses.shift(); Store.save(); Store.touchStreak();
       c.querySelector('#ttq').addEventListener('click', () => { const L = App.lessonById(S.progress.lastLesson || App.nextLesson().id); const key = 'tutor_' + L.id; S.chats[key] = S.chats[key] || []; S.chats[key].push({ role: 'user', content: `방금 이런 분석을 받았습니다. 여기서 제가 스스로 답해야 할 질문부터 하나씩 물어봐 주세요.\n\n${r.text.slice(0, 6000)}` }); Store.save(); go('tutor', { lessonId: L.id }); });
@@ -266,7 +214,7 @@ register('market', (view) => {
   if (cached) render(cached);
   ctl.querySelector('#run').addEventListener('click', async () => {
     box.innerHTML = `<div class="card"><span class="spinner"></span> <span class="muted small">웹검색으로 오늘 시장을 조사 중…</span></div>`; ctl.querySelector('#run').disabled = true;
-    try { const r = await Claude.complete({ system: Prompts.market(wk), messages: [{ role: 'user', content: `오늘(${t}) 시장 브리핑을 부탁합니다. 웹 검색으로 최신 수치와 뉴스를 확인하세요.` }], webSearch: true, maxTokens: 3500, temperature: 0.3 }); const d = { text: r.text, sources: r.sources, note: '' }; S.marketCache[t] = d; const keys = Object.keys(S.marketCache).sort(); while (keys.length > 60) delete S.marketCache[keys.shift()]; Store.save(); Store.touchStreak(); render(d); }
+    try { const r = await Claude.complete({ system: Prompts.market(wk), messages: [{ role: 'user', content: `오늘(${t}) 시장 브리핑을 부탁합니다. 웹 검색으로 최신 수치와 뉴스를 확인하세요.` }], webSearch: true, maxTokens: 3500, temperature: 0.3, feature: 'market' }); const d = { text: r.text, sources: r.sources, note: '' }; S.marketCache[t] = d; const keys = Object.keys(S.marketCache).sort(); while (keys.length > 60) delete S.marketCache[keys.shift()]; Store.save(); Store.touchStreak(); render(d); }
     catch (e) { box.innerHTML = `<div class="card err">${MD.esc(e.message)}</div>`; }
     ctl.querySelector('#run').disabled = false;
   });
@@ -287,7 +235,7 @@ register('settings', (view) => {
     <div class="row"><button class="btn" id="savedev">연결 저장</button><button class="btn secondary" id="test">연결 테스트</button> <span id="msg" class="small muted"></span></div></div>`);
   const sel = f.querySelector('#model'); if (D.model) sel.value = D.model;
   f.querySelector('#load').addEventListener('click', async () => { D.apiKey = f.querySelector('#key').value.trim(); Store.save(); const m = f.querySelector('#msg'); m.innerHTML = '<span class="spinner"></span>'; try { const list = await Claude.listModels(); sel.innerHTML = list.map(x => `<option value="${x.id}">${MD.esc(x.name)} (${x.id})</option>`).join(''); const pick = D.model && list.find(x => x.id === D.model) ? D.model : (list.find(x => /sonnet/i.test(x.id)) || list[0]).id; sel.value = pick; m.textContent = `모델 ${list.length}개 · 키 확인됨`; } catch (e) { m.innerHTML = `<span class="err">${MD.esc(e.message)}</span>`; } });
-  f.querySelector('#test').addEventListener('click', async () => { D.apiKey = f.querySelector('#key').value.trim(); D.model = sel.value || D.model; Store.save(); const m = f.querySelector('#msg'); m.innerHTML = '<span class="spinner"></span> 테스트 중'; try { const r = await Claude.complete({ system: '한 단어로만 답하라.', messages: [{ role: 'user', content: '연결 테스트. "성공"이라고만 답해.' }], maxTokens: 10 }); m.innerHTML = `<span style="color:var(--accent)">✓ 연결 성공 (${MD.esc(Claude.model())}) — 응답: ${MD.esc(r.text.slice(0, 20))}</span>`; if (!sel.value) { sel.innerHTML = `<option value="${Claude.model()}">${Claude.model()}</option>`; sel.value = Claude.model(); } } catch (e) { m.innerHTML = `<span class="err">✗ ${MD.esc(e.message)}</span>`; } });
+  f.querySelector('#test').addEventListener('click', async () => { D.apiKey = f.querySelector('#key').value.trim(); D.model = sel.value || D.model; Store.save(); const m = f.querySelector('#msg'); m.innerHTML = '<span class="spinner"></span> 테스트 중'; try { const r = await Claude.complete({ system: '한 단어로만 답하라.', messages: [{ role: 'user', content: '연결 테스트. "성공"이라고만 답해.' }], maxTokens: 10, feature: 'test' }); m.innerHTML = `<span style="color:var(--accent)">✓ 연결 성공 (${MD.esc(Claude.model())}) — 응답: ${MD.esc(r.text.slice(0, 20))}</span>`; if (!sel.value) { sel.innerHTML = `<option value="${Claude.model()}">${Claude.model()}</option>`; sel.value = Claude.model(); } } catch (e) { m.innerHTML = `<span class="err">✗ ${MD.esc(e.message)}</span>`; } });
   f.querySelector('#savedev').addEventListener('click', () => { D.feedbackEmail = f.querySelector('#fbmail').value.trim(); D.apiKey = f.querySelector('#key').value.trim(); D.model = sel.value || D.model; D.webSearch = f.querySelector('#ws').checked; Store.save(); toast('연결 설정 저장됨'); });
   view.appendChild(f);
   if (!s) { view.appendChild(h(`<div class="card"><button class="btn" data-go="profiles">사용자 선택으로</button></div>`)); return; }
@@ -300,6 +248,24 @@ register('settings', (view) => {
     <div class="row spread"><button class="btn" id="save">사용자 설정 저장</button><button class="btn secondary" data-go="profiles">다른 사용자로 전환</button></div></div>`);
   g.querySelector('#save').addEventListener('click', () => { s.name = g.querySelector('#name').value.trim() || s.name; s.startDate = g.querySelector('#start').value || s.startDate; s.level = g.querySelector('#lv').value; s.role = g.querySelector('#role').value; s.holdings = g.querySelector('#hold').value.trim(); s.profile = g.querySelector('#prof').value.trim(); Store.save(); toast('저장되었습니다'); App.go('settings'); });
   view.appendChild(g);
+  // ── 사용량·비용
+  const U = Usage.thisMonth(), UT = Usage.today();
+  const byRows = Object.entries(U.by).sort((a,b)=>b[1]-a[1]).map(([k,c])=>`<tr><td>${Usage.label[k]||k}</td><td style="text-align:right">${Usage.fmt(c)}</td></tr>`).join('');
+  const whoRows = Object.entries(U.who).sort((a,b)=>b[1]-a[1]).map(([k,c])=>`<tr><td>${MD.esc(k)}</td><td style="text-align:right">${Usage.fmt(c)}</td></tr>`).join('');
+  const u = h(`<div class="card"><h3 style="margin-top:0">📊 사용량 · 비용 (이 기기의 키 기준)</h3>
+    <div class="stats" style="margin-bottom:12px">
+      <div class="stat"><div class="n" style="font-size:22px">${Usage.fmt(UT.cost)}</div><div class="l">오늘 (${UT.calls}회)</div></div>
+      <div class="stat"><div class="n" style="font-size:22px">${Usage.fmt(U.cost)}</div><div class="l">이번 달 (${U.calls}회)</div></div>
+      <div class="stat"><div class="n" style="font-size:22px">${(U.in/1000).toFixed(0)}k</div><div class="l">입력 토큰</div></div>
+      <div class="stat"><div class="n" style="font-size:22px">${(U.out/1000).toFixed(0)}k</div><div class="l">출력 토큰</div></div>
+    </div>
+    <p class="small muted" style="margin:0 0 10px">이번 달 ${Usage.krw(U.cost)} · 웹검색 ${U.searches}회 · 모델 ${MD.esc(Claude.model())}. <b>추정치</b>이며 실제 청구는 console.anthropic.com의 Usage가 기준입니다.</p>
+    ${byRows ? `<div class="grid2"><div><b class="small">기능별</b><table class="small" style="width:100%">${byRows}</table></div><div><b class="small">사용자별</b><table class="small" style="width:100%">${whoRows}</table></div></div>` : '<p class="small muted">아직 사용 기록이 없습니다.</p>'}
+    <div class="field" style="margin-top:12px"><label>월 예산 상한 (USD, 0이면 무제한)</label><div class="row"><input id="bud" type="number" min="0" step="1" value="${Usage.budget()}" style="flex:1"><button class="btn secondary small" id="bsave">예산 저장</button></div><div class="help">이 금액을 넘으면 튜터·분석·브리핑 호출이 멈춥니다(레슨·카드·노트는 계속 가능). 여러 사람이 함께 쓸 때 안전장치입니다.</div></div>
+  </div>`);
+  u.querySelector('#bsave').addEventListener('click', () => { Usage.setBudget(u.querySelector('#bud').value); toast('예산 저장됨'); App.go('settings'); });
+  view.appendChild(u);
+
   const io = h(`<div class="card"><b>이 사용자의 진도 백업 · 기기 간 이동</b><p class="small muted">진도·카드·대화·설정(API 키 제외)을 JSON으로 내보냅니다. 다른 기기의 앱에서 '사용자 추가' 대신 여기 가져오기를 하면 이어서 학습합니다.</p><div class="row"><button class="btn secondary small" id="exp">내보내기 (복사)</button><button class="btn secondary small" id="imp">가져오기 (붙여넣기 → 새 사용자로)</button><button class="btn warn small" id="del">이 사용자 삭제</button></div><textarea id="io" style="margin-top:10px;min-height:70px" placeholder="여기에 붙여넣고 '가져오기'"></textarea></div>`);
   io.querySelector('#exp').addEventListener('click', async () => { const j = Store.exportProfile(); io.querySelector('#io').value = j; try { await navigator.clipboard.writeText(j); toast('클립보드에 복사됨'); } catch (e) { toast('아래 텍스트를 직접 복사하세요'); } });
   io.querySelector('#imp').addEventListener('click', () => { try { Store.importProfile(io.querySelector('#io').value); toast('가져오기 완료'); go('home'); } catch (e) { toast('JSON 형식이 올바르지 않습니다'); } });

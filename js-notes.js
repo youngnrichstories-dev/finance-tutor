@@ -22,7 +22,7 @@ const Notes = (() => {
     e.status = 'loading'; Store.save();
     try {
       const L = e.lessonId ? App.lessonById(e.lessonId) : null;
-      const r = await Claude.complete({ system: `당신은 금융 초보를 위한 용어 사전이다. ${Prompts.learner()}\n규칙: 한국어로, 학습자 레벨에 맞게, 2~3문장으로 정의하라. 첫 문장은 정의, 둘째 문장은 쉬운 비유나 예시, 셋째 문장(선택)은 관련 개념. 마지막 줄에 "💡 " 뒤에 기억 고리 한 구절. 마크다운 없이 평문.`, messages: [{ role: 'user', content: `단어: "${e.word}"${e.sentence ? `\n등장한 문장: "${e.sentence}"` : ''}${L ? `\n레슨: ${L.week}주차 ${L.title}` : ''}` }], maxTokens: 300, temperature: 0.3 });
+      const r = await Claude.complete({ system: `당신은 금융 초보를 위한 용어 사전이다. ${Prompts.learner()}\n규칙: 한국어로, 학습자 레벨에 맞게, 2~3문장으로 정의하라. 첫 문장은 정의, 둘째 문장은 쉬운 비유나 예시, 셋째 문장(선택)은 관련 개념. 마지막 줄에 "💡 " 뒤에 기억 고리 한 구절. 마크다운 없이 평문.`, messages: [{ role: 'user', content: `단어: "${e.word}"${e.sentence ? `\n등장한 문장: "${e.sentence}"` : ''}${L ? `\n레슨: ${L.week}주차 ${L.title}` : ''}` }], maxTokens: 300, temperature: 0.3, feature: 'word' });
       const lines = r.text.trim().split('\n').filter(Boolean); const hint = lines.find(l => l.startsWith('💡')); e.def = lines.filter(l => !l.startsWith('💡')).join(' ').trim(); e.hint = hint ? hint.replace(/^💡\s*/, '') : ''; e.status = 'ready';
     } catch (err) { e.status = 'error'; e.def = ''; e.err = err.message; }
     Store.save(); document.dispatchEvent(new CustomEvent('notes:updated'));
