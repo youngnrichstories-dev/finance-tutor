@@ -17,7 +17,7 @@ const Store = (() => {
     id: o.id || ('p' + Date.now().toString(36)),
     settings: Object.assign({ name: '', role: 'family', level: 'beginner', holdings: '', profile: '', startDate: today(), allCards: false, placement: null }, o.settings || {}),
     progress: { completed: {}, quiz: {}, lastLesson: null, fastPassed: {} },
-    cards: {}, chats: { tutor: [] }, marketCache: {}, streak: { days: [], best: 0 }
+    cards: {}, chats: { tutor: [] }, marketCache: {}, streak: { days: [], best: 0 }, level: { ai: null, history: [] }
   });
   const defaults = () => ({ device: { apiKey: '', model: '', webSearch: true }, activeId: null, profiles: {} });
   let root = load();

@@ -84,3 +84,9 @@ js-views.js          화면들
 
 온라인 주소: https://youngnrichstories-dev.github.io/finance-tutor/
 저장소: https://github.com/youngnrichstories-dev/finance-tutor
+
+
+## v6 (2026-09-07) 내 레벨 · 적응형 튜터
+- `js-level.js`: 0~1000점 + 관문(게이트)으로 Lv.0 금융 문외한 ~ Lv.7 사모펀드 파트너·임원급. 점수 배분·기준은 파일 맨 위 `LADDER`, `score()`.
+- AI 판정: 튜터 대화의 내 발언만 보고 Claude가 레벨을 매김 (내 레벨 탭, API 키 필요).
+- 튜터 프롬프트에 레벨·약한 용어·최근 틀린 퀴즈·다음 레벨에 부족한 것이 자동 포함. Lv.0~2 기초 / 3~4 실무자(계산 시킴) / 5+ 투자위원회(반론) 모드. 3턴 연속 정답이면 난이도 상승.

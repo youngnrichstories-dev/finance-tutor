@@ -20,6 +20,7 @@ register('home', (view) => {
       <div class="stat"><div class="n">${cs.mature}<span class="muted" style="font-size:14px">/${cs.total}</span></div><div class="l">숙련 용어</div></div>
       <div class="stat"><div class="n">${Store.currentStreak()}</div><div class="l">연속 학습일</div></div>
     </div>`));
+  view.appendChild(levelCard());
   if (App.isFastWeek(wk)) view.appendChild(h(`<div class="callout disc" style="margin-top:0"><div class="t">⚡ ${tid === 'company' ? App.level().label + ' 과정: ' + wk + '주차는' : wk + '단계(' + week.stage + ')는 이미 아는 내용이면'} 통과 테스트로 건너뛸 수 있습니다</div><p>${week.lessons.length}문항 중 ${week.lessons.length - 1}개 이상 맞히면 이 ${T.unit}가 완료 처리됩니다. 통과 못 하면 정독하세요.</p><div class="row" style="margin-top:8px"><button class="btn small" data-go="fastpass" data-params='${JSON.stringify({ week: wk, track: tid })}'>${wk}${T.unit} 통과 테스트 (3분)</button><button class="btn small secondary" data-go="lesson" data-params='${JSON.stringify({ id: next.id })}'>그냥 정독하기</button></div></div>`));
   // 오늘의 3단계
   const steps = h(`<div class="card"><h2 style="margin-top:0">오늘의 루틴 (약 25분)</h2></div>`);
@@ -78,10 +79,10 @@ register('lesson', (view, { id }) => {
   for (const t of terms) { const c = h(`<button class="chip">${t.ko} <span class="muted" data-speak="${MD.esc(t.en)}">${t.en} 🔊</span></button>`); c.addEventListener('click', () => { const ex = tbox.querySelector('.tdef'); if (ex) ex.remove(); tbox.appendChild(h(`<div class="tdef small" style="padding:8px 10px;background:var(--surface-2);border-radius:8px"><b>${t.ko}</b> — ${MD.inline(t.def)}<div class="muted">💡 ${MD.inline(t.hint)}</div></div>`)); }); tbox.querySelector('.chips').appendChild(c); }
   view.appendChild(tbox);
   // 퀴즈
-  const qbox = h(`<div class="card"><h3 style="margin-top:0">확인 퀴즈</h3></div>`); let answered = 0, correct = 0;
+  const qbox = h(`<div class="card"><h3 style="margin-top:0">확인 퀴즈</h3></div>`); let answered = 0, correct = 0; const wrongs = [];
   L.quiz.forEach((q, qi) => {
     const qd = h(`<div class="quiz-q"><div class="q">${qi + 1}. ${MD.inline(q.q)}</div></div>`);
-    q.options.forEach((o, oi) => { const b = h(`<button class="opt">${MD.inline(o)}</button>`); b.addEventListener('click', () => { qd.querySelectorAll('.opt').forEach(x => x.disabled = true); if (oi === q.a) { b.classList.add('correct'); correct++; } else { b.classList.add('wrong'); qd.querySelectorAll('.opt')[q.a].classList.add('correct'); } qd.appendChild(h(`<div class="why">${oi === q.a ? '✓ 정답. ' : '✗ '}${MD.inline(q.why)}</div>`)); answered++; if (answered === L.quiz.length) finish(); }); qd.appendChild(b); });
+    q.options.forEach((o, oi) => { const b = h(`<button class="opt">${MD.inline(o)}</button>`); b.addEventListener('click', () => { qd.querySelectorAll('.opt').forEach(x => x.disabled = true); if (oi === q.a) { b.classList.add('correct'); correct++; } else { b.classList.add('wrong'); wrongs.push({ q: q.q, chosen: q.options[oi], correct: q.options[q.a] }); qd.querySelectorAll('.opt')[q.a].classList.add('correct'); } qd.appendChild(h(`<div class="why">${oi === q.a ? '✓ 정답. ' : '✗ '}${MD.inline(q.why)}</div>`)); answered++; if (answered === L.quiz.length) finish(); }); qd.appendChild(b); });
     qbox.appendChild(qd);
   });
   const result = h(`<div id="qres"></div>`); qbox.appendChild(result); view.appendChild(qbox);
@@ -91,7 +92,7 @@ register('lesson', (view, { id }) => {
   view.appendChild(foot);
   view.appendChild(h(`<div class="row spread" style="margin:10px 0 30px">${prev ? `<button class="btn secondary small" data-go="lesson" data-params='${JSON.stringify({ id: prev.id })}'>← ${prev.title}</button>` : '<span></span>'}${next ? `<button class="btn secondary small" data-go="lesson" data-params='${JSON.stringify({ id: next.id })}'>${next.title} →</button>` : ''}</div>`));
   function finish() {
-    const P = Store.get().progress; P.quiz[id] = { score: correct, total: L.quiz.length, date: Store.today() };
+    const P = Store.get().progress; P.quiz[id] = { score: correct, total: L.quiz.length, date: Store.today(), wrong: wrongs };
     if (!P.completed[id]) { P.completed[id] = Store.today(); Store.touchStreak(); toast(`레슨 완료! 퀴즈 ${correct}/${L.quiz.length}`); }
     Store.save(); result.innerHTML = `<div class="callout" style="margin-bottom:0"><b>퀴즈 결과 ${correct}/${L.quiz.length}</b> ${correct === L.quiz.length ? '— 완벽합니다.' : '— 틀린 문항의 해설을 다시 읽고, 튜터에게 그 개념을 물어보세요.'}</div>`;
     foot.querySelector('b').textContent = '✓ 완료한 레슨'; foot.querySelector('#markdone').textContent = '완료 취소'; App.go && document.getElementById('streak') && (function(){ const n=Store.currentStreak(); document.getElementById('streak').textContent = `🔥 ${n}일 연속`; })();
@@ -130,12 +131,13 @@ register('cards', (view) => {
 
 // ───────────────────────── 튜터 (소크라테스식)
 register('tutor', (view, { lessonId } = {}) => {
-  view.appendChild(h(`<h1>🎓 튜터</h1><p class="sub">답을 주지 않고 질문으로 이끕니다. 막히면 "그냥 설명해줘"라고 하세요.</p>`));
+  view.appendChild(h(`<h1>🎓 튜터</h1><p class="sub">답을 주지 않고 질문으로 이끕니다. 내 레벨·약한 용어·틀린 퀴즈를 알고 있어서, 잘하면 어려워지고 막히면 쉬워집니다. 막히면 "그냥 설명해줘"라고 하세요.</p>`));
   if (App.needKey(view)) return;
   const S = Store.get(); const chat = S.chats;
   const L = App.lessonById(lessonId || S.progress.lastLesson || App.nextLesson().id);
   const key = 'tutor_' + L.id; chat[key] = chat[key] || [];
-  const ctx = h(`<div class="row spread" style="margin-bottom:10px"><span class="pill info">맥락: ${L.week}주차 ${L.day}일차 — ${L.title}</span><div class="row"><button class="btn small secondary" id="ctx">다른 레슨</button><button class="btn small secondary" id="clear">대화 지우기</button></div></div>`);
+  const lv = Level.current();
+  const ctx = h(`<div class="row spread" style="margin-bottom:10px"><span class="row" style="gap:6px"><span class="pill info">맥락: ${L.week}주차 ${L.day}일차 — ${L.title}</span><span class="pill" data-go="level" style="cursor:pointer" title="튜터는 이 레벨과 약점 목록을 보고 난이도를 조절합니다">Lv.${lv.level.n} ${lv.level.title}</span></span><div class="row"><button class="btn small secondary" id="ctx">다른 레슨</button><button class="btn small secondary" id="clear">대화 지우기</button></div></div>`);
   ctx.querySelector('#clear').addEventListener('click', () => { chat[key] = []; Store.save(); go('tutor', { lessonId: L.id }); });
   ctx.querySelector('#ctx').addEventListener('click', () => { const sel = h(`<select style="margin:6px 0"></select>`); App.allLessons().forEach(l => sel.appendChild(h(`<option value="${l.id}" ${l.id === L.id ? 'selected' : ''}>${l.week}주 ${l.day}일 — ${l.title}</option>`))); sel.addEventListener('change', () => go('tutor', { lessonId: sel.value })); ctx.after(sel); });
   view.appendChild(ctx);
@@ -163,6 +165,56 @@ register('tutor', (view, { lessonId } = {}) => {
   inp.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send.click(); } });
   chips.querySelectorAll('.chip').forEach(c => c.addEventListener('click', () => ask(c.textContent)));
   if (!chat[key].length) ask(null);
+});
+
+// ───────────────────────── 내 레벨
+function levelCard() {
+  const c = Level.current(); const L = c.level; const nx = c.next;
+  const ai = c.ai ? `<span class="pill info" title="최근 튜터 대화 품질 기준 AI 판정">AI 판정 Lv.${c.ai.level}</span>` : '';
+  return h(`<div class="card clickable" data-go="level" style="border-left:4px solid var(--accent)">
+    <div class="row spread"><div class="row" style="gap:8px"><span class="pill">🏅 Lv.${L.n}</span><b style="font-size:17px">${L.title}</b><span class="small muted">${L.job}</span></div><div class="row" style="gap:6px">${ai}<span class="small muted">${c.score.total}/1000점</span></div></div>
+    ${nx ? `<div class="progress" style="margin:10px 0 6px"><div style="width:${Math.round(nx.pct * 100)}%"></div></div><div class="small muted">다음: Lv.${nx.level.n} ${nx.level.title} — 부족한 것: ${MD.esc(nx.miss.slice(0, 3).join(' · '))}${nx.miss.length > 3 ? ' 외' : ''}</div>` : `<div class="small muted" style="margin-top:6px">최고 레벨입니다. 이제 반론을 받아치는 대화로 유지하세요.</div>`}
+  </div>`);
+}
+register('level', (view) => {
+  const c = Level.current(); const m = c.metrics; const sc = c.score; const w = Level.weaknesses();
+  view.appendChild(h(`<h1>🏅 내 레벨</h1><p class="sub">"얼마나 했나"(시스템 레벨)와 "실제로 아는가"(AI 판정)를 따로 봅니다. 튜터는 둘 다 보고 난이도를 맞춥니다. 기준은 현업 직급에 빗댄 것이라 정확히 일치하진 않지만, 각 레벨이 무엇을 할 수 있어야 하는지는 분명합니다.</p>`));
+  view.appendChild(levelCard());
+  // 점수 분해
+  const names = { breadth: '지식 폭 (레슨, 뒤 주차 가중)', accuracy: '정확도 (퀴즈, 표본 40개까지 할인)', terms: '용어 숙련 (간격반복)', practice: '실전 적용 (분석·브리핑·루틴 문장)', tutor: '튜터 대화 (내 발언 수)' };
+  const br = h(`<div class="card"><h3 style="margin-top:0">점수 ${sc.total}/1000 — 어디서 나왔나</h3></div>`);
+  for (const k of Object.keys(sc.parts)) br.appendChild(h(`<div style="margin:8px 0"><div class="row spread small"><span>${names[k]}</span><b>${sc.parts[k]}/${sc.max[k]}</b></div><div class="progress"><div style="width:${sc.parts[k] / sc.max[k] * 100}%"></div></div></div>`));
+  br.appendChild(h(`<div class="small muted" style="margin-top:10px">지표: 레슨 ${m.lessons}/${m.lessonsAll} · 퀴즈 정확도 ${Math.round(m.acc * 100)}% (${m.quizTaken}개) · 숙련 용어 ${m.mature}/${m.termsAll} · 분석 ${m.analyses}회 · 브리핑 ${m.briefings}회 · 튜터 ${m.tutorTurns}턴 · ${m.days}일째</div>`));
+  view.appendChild(br);
+  // AI 판정
+  const aiBox = h(`<div class="card"><div class="row spread"><div><b>AI 판정 — 실제로 아는가</b><div class="small muted">최근 튜터 대화에서 내 발언만 보고 냉정하게 매깁니다. 튜터와 10턴 이상 대화한 뒤 받으세요. 주 1회 권장.</div></div><button class="btn small" id="judge">${c.ai ? '다시 판정' : '판정 받기'}</button></div><div id="aires" style="margin-top:10px"></div></div>`);
+  const drawAi = (j) => { if (!j) return; aiBox.querySelector('#aires').innerHTML = `<div class="callout" style="margin:0"><div class="row spread"><b>Lv.${j.level} ${Level.LADDER[j.level].title}</b><span class="small muted">${j.date} · 확신 ${MD.esc(j.confidence || '')}</span></div><p style="margin:6px 0">${MD.inline(j.reason || '')}</p>${(j.strengths || []).length ? `<div class="small"><b>확인된 강점</b><ul style="margin:4px 0 8px">${j.strengths.map(x => `<li>${MD.inline(x)}</li>`).join('')}</ul></div>` : ''}${(j.gaps || []).length ? `<div class="small"><b>메워야 할 구멍</b><ul style="margin:4px 0 8px">${j.gaps.map(x => `<li>${MD.inline(x)}</li>`).join('')}</ul></div>` : ''}${(j.next || []).length ? `<div class="small"><b>이번 주 할 것</b><ul style="margin:4px 0 0">${j.next.map(x => `<li>${MD.inline(x)}</li>`).join('')}</ul></div>` : ''}</div>`; };
+  drawAi(c.ai);
+  aiBox.querySelector('#judge').addEventListener('click', async () => {
+    if (!Store.device().apiKey) { toast('설정에서 API 키를 먼저 입력하세요'); return; }
+    if (m.tutorTurns < 5) { toast('튜터와 먼저 5턴 이상 대화하세요'); return; }
+    const b = aiBox.querySelector('#judge'); b.disabled = true; aiBox.querySelector('#aires').innerHTML = `<span class="spinner"></span> <span class="small muted">대화 기록을 심사 중…</span>`;
+    try { const j = await Level.judge(); drawAi(j); toast(`AI 판정: Lv.${j.level}`); go('level'); } catch (e) { aiBox.querySelector('#aires').innerHTML = `<span class="err">${MD.esc(e.message)}</span>`; b.disabled = false; }
+  });
+  view.appendChild(aiBox);
+  // 약점
+  const wb = h(`<div class="card"><h3 style="margin-top:0">튜터가 알고 있는 내 약점</h3></div>`);
+  if (!w.weakTerms.length && !w.wrong.length) wb.appendChild(h(`<p class="small muted">아직 데이터가 없습니다. 퀴즈를 풀고 카드를 복습하면 여기에 쌓이고, 튜터가 이 목록을 우선으로 파고듭니다.</p>`));
+  if (w.weakTerms.length) wb.appendChild(h(`<div class="small"><b>약한 용어</b> — ${w.weakTerms.map(MD.esc).join(', ')}</div>`));
+  if (w.wrong.length) { const ul = h(`<div class="small" style="margin-top:8px"><b>최근 틀린 퀴즈</b><ul style="margin:4px 0 0"></ul></div>`); for (const x of w.wrong.slice(0, 6)) ul.querySelector('ul').appendChild(h(`<li><span class="muted">[${MD.esc(x.lesson)}]</span> ${MD.inline(x.q)} <span class="muted">→ 내 답 "${MD.esc(x.chosen)}"</span></li>`)); wb.appendChild(ul); }
+  if (w.strongWeeks.length) wb.appendChild(h(`<div class="small" style="margin-top:8px"><b>완주한 주차</b> — ${w.strongWeeks.join(', ')}</div>`));
+  view.appendChild(wb);
+  // 사다리
+  const lad = h(`<div class="card"><h3 style="margin-top:0">레벨 사다리 — 각 레벨의 기준</h3><p class="small muted">점수와 관문(게이트)을 모두 채워야 올라갑니다. 관문은 "점수는 되는데 실제로는 못 하는" 상태를 막기 위한 것입니다.</p></div>`);
+  for (const L of Level.LADDER) {
+    const miss = Level.gateMiss(L, m); const reached = c.level.n >= L.n; const isCur = c.level.n === L.n;
+    const gates = Object.entries(L.gate).map(([k, v]) => { const bad = miss.find(x => x.key === k); return `<span class="pill ${bad ? 'muted' : ''}" style="font-size:12px">${Level.GATE_LABEL[k]} ${Level.fmt(k, v)}${bad ? ` (지금 ${Level.fmt(k, bad.have)})` : ' ✓'}</span>`; }).join(' ');
+    lad.appendChild(h(`<div style="padding:10px 0;border-top:1px solid var(--line);${isCur ? 'background:var(--accent-soft);margin:0 -20px;padding:10px 20px;border-radius:8px' : ''}"><div class="row spread"><div><b>${reached ? '✓ ' : ''}Lv.${L.n} ${L.title}</b> <span class="small muted">${L.job} · ${L.min}점+</span></div>${isCur ? '<span class="pill">현재</span>' : ''}</div><div class="small" style="margin:4px 0">${L.desc}</div><div class="row" style="gap:4px">${gates || '<span class="small muted">관문 없음</span>'}</div></div>`));
+  }
+  view.appendChild(lad);
+  // 추이
+  const hist = (Store.get().level && Store.get().level.history) || [];
+  if (hist.length > 1) view.appendChild(h(`<div class="card small"><b>AI 판정 추이</b> — ${hist.map(x => `${x.date.slice(5)} Lv.${x.level}(${x.score}점)`).join(' → ')}</div>`));
 });
 
 // ───────────────────────── 종목분석 · 공시 해석
