@@ -161,7 +161,7 @@ JSON만 출력하라. 마크다운 코드펜스·서론 금지.
   }
   async function judge() {
     const p = judgePrompt();
-    const r = await Claude.complete({ system: p.system, messages: [{ role: 'user', content: p.user }], maxTokens: 900, temperature: 0.2 });
+    const r = await Claude.complete({ system: p.system, messages: [{ role: 'user', content: p.user }], maxTokens: 900, temperature: 0.2, feature: 'level' });
     const clean = r.text.replace(/```json|```/g, '').trim(); const j = JSON.parse(clean.slice(clean.indexOf('{'), clean.lastIndexOf('}') + 1));
     j.level = Math.max(0, Math.min(7, parseInt(j.level, 10) || 0)); j.date = Store.today();
     const S = Store.get(); S.level = S.level || {}; S.level.ai = j; S.level.history = (S.level.history || []).concat([{ date: j.date, level: j.level, score: current().score.total }]).slice(-60); Store.save();

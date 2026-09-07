@@ -56,6 +56,6 @@ const Usage = (() => {
   }
   const fmt = c => c < 0.01 ? '$0.01 미만' : '$' + c.toFixed(2);
   const krw = c => '약 ' + Math.round(c * 1400).toLocaleString() + '원';
-  const label = { tutor: '튜터', scan: '종목 스캔', disclosure: '공시 해석', market: '시장 브리핑', word: '단어 정의', test: '연결 테스트', etc: '기타' };
+  const label = { tutor: '튜터', scan: '종목 스캔', disclosure: '공시 해석', market: '시장 브리핑', word: '단어 정의', level: '레벨 판정', test: '연결 테스트', etc: '기타' };
   return { record, sum, today, thisMonth, budget, setBudget, check, fmt, krw, label, price, db };
 })();
