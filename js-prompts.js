@@ -28,7 +28,14 @@ ${Level.context()}`;
 - 매수·매도·목표주가를 지시하지 마라. 판단은 학습자가 한다. 대신 판단에 필요한 질문과 틀을 줘라.
 - 마크다운(제목 ##, 굵게, 목록, 표)을 써서 읽기 쉽게.`;
 
-  function tutor(lesson) {
+  // 외부 강의 교재 요약 — 기업 트랙에서 항상 포함(약 1.2k 토큰). opts.course/lecture가 있으면 해당 강의 핵심도 추가.
+  function courseDigest(opts) {
+    const cs = Object.values(window.COURSES || {}); if (!cs.length) return '';
+    let s = '\n' + cs.map(c => c.digest).join('\n');
+    if (opts && opts.course && window.Course) { const c = Course.get(opts.course); const l = c && Course.findLecture(c, opts.lecture); s += Course.tutorContext(c, l); }
+    return s;
+  }
+  function tutor(lesson, opts) {
     let ctx = '';
     if (lesson) {
       const pr = window.PRACTICE[lesson.id] || {};
@@ -45,7 +52,7 @@ ${commonRules}
 - 학습자의 보유 종목을 예시로 자주 써라. 그 회사의 공시(10-K, 실적발표, 컨퍼런스콜)에서 이 개념이 어디에 나타나는지 연결하라.
 - 답변은 보통 150자 이내 + 질문 하나. 설명 모드일 때만 길게.
 - 첫 메시지에서는 현재 레슨의 '튜터 시작 질문'으로 시작하라. 단, 약점 목록에 이 레슨과 겹치는 개념이 있으면 그 약점을 먼저 짚는 질문으로 시작하라.
-${Level.tutorRules()}${ctx}`;
+${Level.tutorRules()}${ctx}${(!lesson || lesson.track !== 'alloc') ? courseDigest(opts) : ''}`;
   }
 
   function stockScan(ticker) {

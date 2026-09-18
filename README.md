@@ -15,6 +15,7 @@
 | 내 노트 | 선택 | 레슨·카드·튜터 답변에서 모르는 단어를 클릭·드래그해 저장. 용어집 정의(또는 Claude 정의)가 붙고 용어 카드 복습에 자동 포함. 나만의 정리 메모 |
 | 영어 발음 | 아니오 | 영어 용어(🔊)를 클릭하면 브라우저 음성으로 발음. 드래그한 영어 단어도 🔊 |
 | 💡 의견 버튼 | 아니오 | 오른쪽 하단 버튼으로 아이디어·불편·오류·질문을 남김. 기기에 저장 + 관리자 이메일로 보내기(설정에서 주소 변경) |
+| 📺 강의 연동 | 선택 | 외부 강의(권오상 재무제표분석 기초, 5파트 35강)를 강의 순서대로 앱 레슨과 짝지은 학습 경로. 강의 시청 체크 → 짝 레슨 → 강의 핵심으로 튜터 질문. 튜터는 교재 핵심 공식·사례를 알고 있음 |
 | 오늘의 시장 | 예 | 웹검색 기반 브리핑을 **이번 주 학습 개념**과 연결. 보유 종목 뉴스·다가오는 일정 포함 |
 
 ## 여러 사람이 쓰기 (레벨별 과정)
@@ -45,28 +46,33 @@
 ```
 index.html          화면 뼈대
 styles.css          스타일 (라이트/다크 자동)
-data-curriculum-1.js   1~4주차 레슨 (재무제표)
-data-curriculum-2.js   5~8주차 레슨 (비율·성장·밸류에이션)
-data-curriculum-3.js   9~12주차 레슨 (경영자 관점·공시·거시·원칙)
-data-practice-1.js     1~4주차 공시 읽기 연습·시장 흐름 연결 (5주차부터는 레슨 안에 포함)
-data-terms-1.js        용어 카드 1~6주차
-data-terms-2.js        용어 카드 7~12주차
-js-store.js          localStorage 저장 (설정·진도·카드·대화)
-js-md.js             작은 마크다운 렌더러
-js-srs.js            간격반복 스케줄러
-js-claude.js         Claude API 호출 (스트리밍·웹검색)
-js-prompts.js        튜터·종목분석·공시 해석·시장 브리핑 시스템 프롬프트
-js-app.js            라우터·헬퍼
-js-views.js          화면들
+data/
+  curriculum-1.js   1~4주차 레슨 (재무제표)
+  curriculum-2.js   5~8주차 레슨 (비율·성장·밸류에이션)
+  curriculum-3.js   9~12주차 레슨 (경영자 관점·공시·거시·원칙)
+  practice-1.js     1~4주차 공시 읽기 연습·시장 흐름 연결 (5주차부터는 레슨 안에 포함)
+  terms-1.js        용어 카드 1~6주차
+  terms-2.js        용어 카드 7~12주차
+  alloc-1~3.js      자산배분 트랙 6단계
+  course-kwon.js    권오상 강의 연동(파트→강의→짝 레슨·핵심·교재 페이지)
+js/
+  store.js          localStorage 저장 (설정·진도·카드·대화)
+  md.js             작은 마크다운 렌더러
+  srs.js            간격반복 스케줄러
+  claude.js         Claude API 호출 (스트리밍·웹검색)
+  prompts.js        튜터·종목분석·공시 해석·시장 브리핑 시스템 프롬프트
+  app.js            라우터·헬퍼
+  views.js          화면들
+  course.js         강의 연동 화면·튜터 맥락
 ```
 
 ## 직접 고치기 (코딩 연습 포인트)
 
-- **레슨 추가·수정**: `data-curriculum-*.js`의 객체 하나가 레슨 하나. `body`는 마크다운. `quiz.a`는 정답 인덱스(0부터).
-- **용어 추가**: `data-terms-*.js`에 `{ id, ko, en, week, def, hint }` 추가 후 레슨의 `terms` 배열에 id를 넣으면 자동 연결.
-- **튜터 성격 바꾸기**: `js-prompts.js`의 `tutor()` 함수. "답변 150자 이내 + 질문 하나" 같은 규칙이 여기 있음.
-- **분석 형식 바꾸기**: `js-prompts.js`의 `stockScan()`·`disclosure()`·`market()`.
-- **간격 조정**: `js-srs.js`의 `rate()` 안 숫자.
+- **레슨 추가·수정**: `data/curriculum-*.js`의 객체 하나가 레슨 하나. `body`는 마크다운. `quiz.a`는 정답 인덱스(0부터).
+- **용어 추가**: `data/terms-*.js`에 `{ id, ko, en, week, def, hint }` 추가 후 레슨의 `terms` 배열에 id를 넣으면 자동 연결.
+- **튜터 성격 바꾸기**: `js/prompts.js`의 `tutor()` 함수. "답변 150자 이내 + 질문 하나" 같은 규칙이 여기 있음.
+- **분석 형식 바꾸기**: `prompts.js`의 `stockScan()`·`disclosure()`·`market()`.
+- **간격 조정**: `js/srs.js`의 `rate()` 안 숫자.
 
 ## 참고한 오픈소스
 
@@ -79,14 +85,3 @@ js-views.js          화면들
 ## 주의
 
 이 앱과 AI 튜터는 교육 도구입니다. 매수·매도·목표주가를 제시하지 않으며, AI가 말하는 숫자는 반드시 공시 원문에서 확인하세요. 투자 판단과 책임은 본인에게 있습니다.
-
-## 배포
-
-온라인 주소: https://youngnrichstories-dev.github.io/finance-tutor/
-저장소: https://github.com/youngnrichstories-dev/finance-tutor
-
-
-## v6 (2026-09-07) 내 레벨 · 적응형 튜터
-- `js-level.js`: 0~1000점 + 관문(게이트)으로 Lv.0 금융 문외한 ~ Lv.7 사모펀드 파트너·임원급. 점수 배분·기준은 파일 맨 위 `LADDER`, `score()`.
-- AI 판정: 튜터 대화의 내 발언만 보고 Claude가 레벨을 매김 (내 레벨 탭, API 키 필요).
-- 튜터 프롬프트에 레벨·약한 용어·최근 틀린 퀴즈·다음 레벨에 부족한 것이 자동 포함. Lv.0~2 기초 / 3~4 실무자(계산 시킴) / 5+ 투자위원회(반론) 모드. 3턴 연속 정답이면 난이도 상승.

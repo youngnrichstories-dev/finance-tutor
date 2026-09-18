@@ -21,6 +21,7 @@ register('home', (view) => {
       <div class="stat"><div class="n">${Store.currentStreak()}</div><div class="l">연속 학습일</div></div>
     </div>`));
   view.appendChild(levelCard());
+  if (window.Course && tid === 'company') { const cc = Course.homeCard(); if (cc) view.appendChild(cc); }
   if (App.isFastWeek(wk)) view.appendChild(h(`<div class="callout disc" style="margin-top:0"><div class="t">⚡ ${tid === 'company' ? App.level().label + ' 과정: ' + wk + '주차는' : wk + '단계(' + week.stage + ')는 이미 아는 내용이면'} 통과 테스트로 건너뛸 수 있습니다</div><p>${week.lessons.length}문항 중 ${week.lessons.length - 1}개 이상 맞히면 이 ${T.unit}가 완료 처리됩니다. 통과 못 하면 정독하세요.</p><div class="row" style="margin-top:8px"><button class="btn small" data-go="fastpass" data-params='${JSON.stringify({ week: wk, track: tid })}'>${wk}${T.unit} 통과 테스트 (3분)</button><button class="btn small secondary" data-go="lesson" data-params='${JSON.stringify({ id: next.id })}'>그냥 정독하기</button></div></div>`));
   // 오늘의 3단계
   const steps = h(`<div class="card"><h2 style="margin-top:0">오늘의 루틴 (약 25분)</h2></div>`);
@@ -78,6 +79,7 @@ register('lesson', (view, { id }) => {
   const tbox = h(`<div class="card"><h3 style="margin-top:0">오늘의 용어 ${terms.length}개</h3><div class="chips"></div><p class="small muted">용어 카드 탭에 자동 추가됩니다. 클릭하면 정의를 봅니다.</p></div>`);
   for (const t of terms) { const c = h(`<button class="chip">${t.ko} <span class="muted" data-speak="${MD.esc(t.en)}">${t.en} 🔊</span></button>`); c.addEventListener('click', () => { const ex = tbox.querySelector('.tdef'); if (ex) ex.remove(); tbox.appendChild(h(`<div class="tdef small" style="padding:8px 10px;background:var(--surface-2);border-radius:8px"><b>${t.ko}</b> — ${MD.inline(t.def)}<div class="muted">💡 ${MD.inline(t.hint)}</div></div>`)); }); tbox.querySelector('.chips').appendChild(c); }
   view.appendChild(tbox);
+  if (window.Course) { const lecs = Course.lecturesForLesson(id); if (lecs.length) view.appendChild(h(`<div class="callout" style="border-left:4px solid var(--accent)"><div class="t">📺 이 레슨과 짝인 강의</div><div class="chips" style="margin-top:6px">${lecs.map(l => `<button class="chip ${Course.watched(l.course, l) ? 'active' : ''}" data-go="course" data-params='${JSON.stringify({ id: l.course.id, part: l.part })}'>${Course.watched(l.course, l) ? '✓ ' : ''}${l.n} ${MD.esc(l.title)}</button>`).join('')}</div></div>`)); }
   // 퀴즈
   const qbox = h(`<div class="card"><h3 style="margin-top:0">확인 퀴즈</h3></div>`); let answered = 0, correct = 0; const wrongs = [];
   L.quiz.forEach((q, qi) => {
@@ -130,14 +132,15 @@ register('cards', (view) => {
 });
 
 // ───────────────────────── 튜터 (소크라테스식)
-register('tutor', (view, { lessonId } = {}) => {
+register('tutor', (view, { lessonId, course, lecture } = {}) => {
   view.appendChild(h(`<h1>🎓 튜터</h1><p class="sub">답을 주지 않고 질문으로 이끕니다. 내 레벨·약한 용어·틀린 퀴즈를 알고 있어서, 잘하면 어려워지고 막히면 쉬워집니다. 막히면 "그냥 설명해줘"라고 하세요.</p>`));
   if (App.needKey(view)) return;
   const S = Store.get(); const chat = S.chats;
   const L = App.lessonById(lessonId || S.progress.lastLesson || App.nextLesson().id);
-  const key = 'tutor_' + L.id; chat[key] = chat[key] || [];
+  const lec = course && window.Course ? Course.findLecture(Course.get(course), lecture) : null;
+  const key = 'tutor_' + L.id + (lec ? '_' + course + lec.n : ''); chat[key] = chat[key] || [];
   const lv = Level.current();
-  const ctx = h(`<div class="row spread" style="margin-bottom:10px"><span class="row" style="gap:6px"><span class="pill info">맥락: ${L.week}주차 ${L.day}일차 — ${L.title}</span><span class="pill" data-go="level" style="cursor:pointer" title="튜터는 이 레벨과 약점 목록을 보고 난이도를 조절합니다">Lv.${lv.level.n} ${lv.level.title}</span></span><div class="row"><button class="btn small secondary" id="ctx">다른 레슨</button><button class="btn small secondary" id="clear">대화 지우기</button></div></div>`);
+  const ctx = h(`<div class="row spread" style="margin-bottom:10px"><span class="row" style="gap:6px"><span class="pill info">맥락: ${L.week}주차 ${L.day}일차 — ${L.title}</span>${lec ? `<span class="pill" data-go="course" data-params='${JSON.stringify({ id: course })}' style="cursor:pointer">📺 ${lec.n} ${MD.esc(lec.title)}</span>` : ''}<span class="pill" data-go="level" style="cursor:pointer" title="튜터는 이 레벨과 약점 목록을 보고 난이도를 조절합니다">Lv.${lv.level.n} ${lv.level.title}</span></span><div class="row"><button class="btn small secondary" id="ctx">다른 레슨</button><button class="btn small secondary" id="clear">대화 지우기</button></div></div>`);
   ctx.querySelector('#clear').addEventListener('click', () => { chat[key] = []; Store.save(); go('tutor', { lessonId: L.id }); });
   ctx.querySelector('#ctx').addEventListener('click', () => { const sel = h(`<select style="margin:6px 0"></select>`); App.allLessons().forEach(l => sel.appendChild(h(`<option value="${l.id}" ${l.id === L.id ? 'selected' : ''}>${l.week}주 ${l.day}일 — ${l.title}</option>`))); sel.addEventListener('change', () => go('tutor', { lessonId: sel.value })); ctx.after(sel); });
   view.appendChild(ctx);
@@ -155,8 +158,8 @@ register('tutor', (view, { lessonId } = {}) => {
     const el = h(`<div class="msg assistant typing"></div>`); box.appendChild(el); window.scrollTo(0, document.body.scrollHeight);
     try {
       const msgs = chat[key].slice(-16).map(m => ({ role: m.role, content: m.content }));
-      if (!msgs.length) msgs.push({ role: 'user', content: '(시작) 오늘 레슨의 튜터 시작 질문으로 시작해 주세요.' });
-      const full = await Claude.stream({ system: Prompts.tutor(L), feature: 'tutor', messages: msgs, onDelta: (_, acc) => { el.innerHTML = MD.render(acc); } });
+      if (!msgs.length) msgs.push({ role: 'user', content: lec ? `(시작) 방금 강의 ${lec.n} 「${lec.title}」를 봤습니다. 강의 핵심을 제 말로 설명해 보게 질문해 주세요.` : '(시작) 오늘 레슨의 튜터 시작 질문으로 시작해 주세요.' });
+      const full = await Claude.stream({ system: Prompts.tutor(L, lec ? { course, lecture } : null), feature: 'tutor', messages: msgs, onDelta: (_, acc) => { el.innerHTML = MD.render(acc); } });
       el.classList.remove('typing'); chat[key].push({ role: 'assistant', content: full }); Store.save(); Store.touchStreak();
     } catch (e) { el.classList.remove('typing'); el.innerHTML = `<span class="err">${MD.esc(e.message)}</span>`; }
     busy = false; send.disabled = false; inp.focus();
@@ -180,6 +183,7 @@ register('level', (view) => {
   const c = Level.current(); const m = c.metrics; const sc = c.score; const w = Level.weaknesses();
   view.appendChild(h(`<h1>🏅 내 레벨</h1><p class="sub">"얼마나 했나"(시스템 레벨)와 "실제로 아는가"(AI 판정)를 따로 봅니다. 튜터는 둘 다 보고 난이도를 맞춥니다. 기준은 현업 직급에 빗댄 것이라 정확히 일치하진 않지만, 각 레벨이 무엇을 할 수 있어야 하는지는 분명합니다.</p>`));
   view.appendChild(levelCard());
+  if (window.Course && tid === 'company') { const cc = Course.homeCard(); if (cc) view.appendChild(cc); }
   // 점수 분해
   const names = { breadth: '지식 폭 (레슨, 뒤 주차 가중)', accuracy: '정확도 (퀴즈, 표본 40개까지 할인)', terms: '용어 숙련 (간격반복)', practice: '실전 적용 (분석·브리핑·루틴 문장)', tutor: '튜터 대화 (내 발언 수)' };
   const br = h(`<div class="card"><h3 style="margin-top:0">점수 ${sc.total}/1000 — 어디서 나왔나</h3></div>`);
